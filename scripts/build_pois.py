@@ -15,7 +15,7 @@ import json, math, os, re, sys, shutil
 from datetime import datetime, timezone
 from collections import defaultdict
 
-KEEP = ['name', 'website', 'contact:website', 'opening_hours', 'wheelchair', 'dog', 'fee',
+KEEP = ['name', 'wikidata', 'wikipedia', 'website', 'contact:website', 'opening_hours', 'wheelchair', 'dog', 'fee',
         'covered', 'indoor', 'building', 'zoo', 'museum']
 
 
