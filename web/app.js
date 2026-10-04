@@ -54,7 +54,8 @@ const state = {
   stops: ['', ''], radius: 8000,
   mains: new Set(), subs: new Set(), extras: new Set(), kw: '', maxOff: 8000, named: true,
   route: null, results: [], byId: new Map(), tab: 'hits', favs: store.get('af-favs', {}), tips: new Set(),
-  plan: store.get('af-plan', {dep: '09:00', stay: {}, skip: {}}),
+  plan: store.get('af-plan', {dep: '09:00', stay: {}}),
+  tour: [], tourRoute: null, tourBusy: false, pendingTour: null, baseLines: [],
   markers: {}, activeId: null, lastSurprise: null,
 };
 
@@ -62,12 +63,13 @@ const state = {
 const map = L.map('map', {zoomControl: false}).setView([51.2, 10.3], 6);
 L.control.zoom({position: 'topright'}).addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende'}).addTo(map);
-const routeLayer = L.layerGroup().addTo(map), poiLayer = L.layerGroup().addTo(map);
+const routeLayer = L.layerGroup().addTo(map), tourLayer = L.layerGroup().addTo(map), poiLayer = L.layerGroup().addTo(map);
 
 function drawRoute(coords, points){
-  routeLayer.clearLayers();
+  routeLayer.clearLayers(); tourLayer.clearLayers();
   const poly = L.polyline(coords, {color: '#fff', weight: 9, opacity: .9}).addTo(routeLayer);
   const line = L.polyline(coords, {color: '#1D4F91', weight: 5, opacity: .95}).addTo(routeLayer);
+  state.baseLines = [poly, line];
   points.forEach((p, i) => L.circleMarker(p, {radius: i === 0 || i === points.length-1 ? 8 : 6, color: '#fff', weight: 3, fillColor: '#1D4F91', fillOpacity: 1})
     .bindTooltip(state.stops[i]).addTo(routeLayer));
   map.fitBounds(poly.getBounds(), {padding: [40, 40], animate: false});
@@ -88,7 +90,7 @@ function toggleFav(id, btn){
   else{
     const r = state.byId.get(id); if(!r) return;
     state.favs[id] = {id, name: r.name, lat: r.lat, lon: r.lon, sid: r.s.id, web: r.t.website || r.t['contact:website'] || '', added: Date.now()};
-    toast('Gemerkt und in den Tagesplan übernommen');
+    toast('Auf die Merkliste gesetzt');
   }
   store.set('af-favs', state.favs);
   render();
@@ -161,7 +163,7 @@ async function osrm(points){
 async function getRoute(points){
   const rt = await osrm(points);
   let c = 0; const legEnds = rt.legs.map(l => c += l.distance);
-  return {coords: rt.geometry.coordinates.map(([lo, la]) => [la, lo]), dist: rt.distance, dur: rt.duration, legEnds};
+  return {coords: rt.geometry.coordinates.map(([lo, la]) => [la, lo]), dist: rt.distance, dur: rt.duration, legEnds, legDur: rt.legs.map(l => l.duration)};
 }
 function sampleRoute(coords, step){
   const out = [{p: coords[0], c: 0}]; let cum = 0, next = step;
@@ -218,7 +220,7 @@ async function search(ev){
     rt.coords.forEach(([la, lo]) => { s=Math.min(s,la); n=Math.max(n,la); w=Math.min(w,lo); e=Math.max(e,lo); });
     const pad = radius / 111320, padLo = radius / (111320 * Math.cos((s+n)/2 * Math.PI/180));
     state.route = {...rt, radius, points};
-    state.results = []; state.planCache = null;
+    state.results = [];
     const seen = new Set();
     await loadTiles(tilesForRoute(rt.coords, radius), items => {
       for(const [id, lat, lon, sid, t] of items){
@@ -236,7 +238,10 @@ async function search(ev){
     });
     state.results.sort((a, b) => a.km - b.km);
     state.byId = new Map(state.results.map(r => [r.id, r]));
+    state.tour = (state.pendingTour || []).filter(id => state.byId.has(id)); state.pendingTour = null;
+    state.tourRoute = null;
     $('share').disabled = false;
+    await updateTour(false);
     history.replaceState(null, '', '#' + shareParams(false).toString());
     render(true);
   }catch(err){ setStatus(err.message, true); }
@@ -295,6 +300,7 @@ function cardHtml(r, meta){
       <button type="button" class="open" data-open="${esc(r.id)}"><span class="tile" aria-hidden="true">${r.s.e}</span>
         <span style="min-width:0"><strong>${esc(r.name || 'Ohne Namen')}${state.tips.has(r.id) ? '<span class="tip">Tipp</span>' : ''}</strong>
         <small>${esc(r.s.label)}${meta}</small></span></button>
+      ${r.offRoute ? '' : `<button type="button" class="add" data-tour="${esc(r.id)}" aria-pressed="${state.tour.includes(r.id)}" aria-label="${state.tour.includes(r.id) ? 'Aus der Route entfernen' : 'Als Zwischenstopp zur Route hinzufügen'}">${state.tour.includes(r.id) ? '✓' : '+'}</button>`}
       <button type="button" class="star" data-fav="${esc(r.id)}" aria-pressed="${!!state.favs[r.id]}" aria-label="${state.favs[r.id] ? 'Nicht mehr merken' : 'Merken'}">★</button>
     </div>`;
 }
@@ -311,10 +317,11 @@ function render(animate=false){
   document.querySelectorAll('#tabs button').forEach(b => b.setAttribute('aria-selected', b.dataset.tab === state.tab));
   if(state.route){
     const R = state.route;
-    setStatus(`${items.length} von ${state.results.filter(named).length} Zielen auf ${fmtKm(R.dist)} km, ca. ${fmtDur(R.dur)} reine Fahrt.`);
+    const T = state.tourRoute, extra = T && state.tour.length ? ` Mit ${state.tour.length} Abstecher${state.tour.length > 1 ? 'n' : ''}: ${fmtDur(T.dur)} Fahrt (+${fmtDur(Math.max(0, T.dur - R.dur))}).` : '';
+    setStatus(`${items.length} von ${state.results.filter(named).length} Zielen auf ${fmtKm(R.dist)} km, ca. ${fmtDur(R.dur)} reine Fahrt.${extra}`);
   }
-  $('pane').innerHTML = state.tab === 'hits' ? renderHits(items) : state.tab === 'favs' ? renderFavs() : renderPlanShell();
-  if(state.tab === 'plan') computePlan();
+  $('ntour').textContent = state.tour.length ? `(${state.tour.length})` : '';
+  $('pane').innerHTML = state.tab === 'hits' ? renderHits(items) : state.tab === 'favs' ? renderFavs() : renderPlan();
 }
 function renderHits(items){
   if(!state.route) return '<p class="empty">Start und Ziel eingeben und „Route suchen“ tippen. Filtern kannst du danach live.</p>';
@@ -381,8 +388,10 @@ const gmapsDest = r => `https://www.google.com/maps/dir/?api=1&destination=${r.l
 function renderDetailActions(id){
   const box = $('d-actions'); if(!box) return;
   const r = state.byId.get(id) || favEntries().find(f => f.id === id); if(!r) return;
-  box.innerHTML = `<button type="button" class="btn ${state.favs[id] ? 'brown' : ''}" data-fav="${esc(id)}">${state.favs[id] ? '★ Gemerkt' : '☆ Merken'}</button>
-    <a class="btn primary" href="${gmapsDest(r)}" target="_blank" rel="noopener">Hin navigieren</a>`;
+  const inTour = state.tour.includes(id);
+  box.innerHTML = `${r.offRoute ? '' : `<button type="button" class="btn ${inTour ? 'primary' : ''}" data-tour="${esc(id)}">${inTour ? '✓ In der Route' : '+ Zur Route'}</button>`}
+    <button type="button" class="btn ${state.favs[id] ? 'brown' : ''}" data-fav="${esc(id)}">${state.favs[id] ? '★ Gemerkt' : '☆ Merken'}</button>
+    <a class="btn wide" href="${gmapsDest(r)}" target="_blank" rel="noopener">Nur hierhin navigieren</a>`;
 }
 let detailSeq = 0;
 async function openDetail(id){
@@ -469,72 +478,126 @@ $('surprise').addEventListener('click', () => {
   }, reduceMotion ? 0 : 450);
 });
 
-// ===================== Tagesplan =====================
+// ===================== Tour: Route mit Abstechern =====================
 const stayOf = r => state.plan.stay[r.id] ?? STAY[r.s.id] ?? 60;
-function planItems(){ return favEntries().filter(r => !r.offRoute).sort((a, b) => a.km - b.km); }
+const tourItems = () => state.tour.map(id => state.byId.get(id)).filter(Boolean).sort((a, b) => a.km - b.km);
 function savePlan(){ store.set('af-plan', state.plan); }
-function renderPlanShell(){
-  if(!state.route) return '<p class="empty">Für den Tagesplan zuerst eine Route suchen.</p>';
-  const items = planItems();
-  if(!items.length) return '<p class="empty">Merk dir Ziele mit dem Stern. Sie erscheinen hier in Fahrtreihenfolge, mit Ankunftszeiten und Aufenthaltsdauer.</p>';
-  return `<div class="plan-head">
-      <label class="f">Abfahrt<input type="time" id="dep" value="${esc(state.plan.dep)}"></label>
-      <span class="note" style="padding-bottom:9px">${items.filter(r => !state.plan.skip[r.id]).length} von ${items.length} Zielen im Plan</span>
-    </div>
-    <div id="plan-out"><div class="shimmer" style="height:60px;margin-bottom:10px"></div><div class="shimmer" style="height:180px"></div></div>`;
+function tourWaypoints(){
+  const R = state.route, stopKm = [0, ...R.legEnds.slice(0, -1), R.dist];
+  // Eigene Stopps + Abstecher, nach Streckenkilometer sortiert (Start bleibt vorn, Ziel hinten)
+  return [...R.points.map((p, i) => ({kind: 'stop', p, km: i === 0 ? -1 : i === R.points.length-1 ? Infinity : stopKm[i], label: state.stops[i]})),
+          ...tourItems().map(r => ({kind: 'place', p: [r.lat, r.lon], km: r.km, label: r.name || r.s.label, r}))].sort((a, b) => a.km - b.km);
 }
-let planSeq = 0;
-async function computePlan(){
-  const out = $('plan-out'); if(!out) return;
-  const seq = ++planSeq, R = state.route;
-  const items = planItems(), active = items.filter(r => !state.plan.skip[r.id]);
-  // Wegpunkte: eigene Stopps + aktive Ziele, nach Streckenkilometer sortiert
-  const stopKm = [0, ...R.legEnds.slice(0, -1), R.dist];
-  const wps = [...R.points.map((p, i) => ({kind: 'stop', p, km: stopKm[i], label: state.stops[i], i})),
-               ...active.map(r => ({kind: 'place', p: [r.lat, r.lon], km: r.km, r}))].sort((a, b) => a.km - b.km || (a.kind === 'stop' && a.i === 0 ? -1 : 0));
-  const key = wps.map(w => w.p.join(',')).join(';');
-  let legs = state.planCache?.key === key ? state.planCache.legs : null;
-  if(!legs){
-    try{ legs = (await osrm(wps.map(w => w.p))).legs.map(l => l.duration); state.planCache = {key, legs}; }
-    catch(e){ if(seq === planSeq) out.innerHTML = `<p class="empty">${esc(e.message)}</p>`; return; }
+function toggleTour(id){
+  const i = state.tour.indexOf(id);
+  if(i >= 0){ state.tour.splice(i, 1); toast('Aus der Route entfernt'); }
+  else{ state.tour.push(id); toast('Als Zwischenstopp hinzugefügt'); }
+  history.replaceState(null, '', '#' + shareParams(false).toString());
+  render(); updateTour();
+  if($('sheet').classList.contains('open') && state.activeId === id) renderDetailActions(id);
+}
+let tourSeq = 0;
+async function updateTour(rerender = true){
+  const R = state.route; if(!R) return;
+  const seq = ++tourSeq, wps = tourWaypoints();
+  if(!state.tour.length){
+    state.tourRoute = {coords: R.coords, legs: R.legDur, dur: R.dur, dist: R.dist, wps};
+    drawTour();
+    if(rerender) render();
+    return;
   }
-  if(seq !== planSeq) return;
+  state.tourBusy = true; if(rerender && state.tab === 'plan') render();
+  try{
+    const rt = await osrm(wps.map(w => w.p));
+    if(seq !== tourSeq) return;
+    state.tourRoute = {coords: rt.geometry.coordinates.map(([lo, la]) => [la, lo]), legs: rt.legs.map(l => l.duration), dur: rt.duration, dist: rt.distance, wps};
+  }catch(e){ if(seq === tourSeq) toast(e.message); }
+  finally{ if(seq === tourSeq){ state.tourBusy = false; drawTour(); if(rerender) render(); } }
+}
+function drawTour(){
+  tourLayer.clearLayers();
+  const has = state.tour.length && state.tourRoute;
+  // Ursprüngliche Route tritt zurück, sobald Abstecher drin sind
+  state.baseLines[1]?.setStyle(has ? {color: '#8C98A8', weight: 4, opacity: .7, dashArray: '6 8'} : {color: '#1D4F91', weight: 5, opacity: .95, dashArray: null});
+  state.baseLines[0]?.setStyle({opacity: has ? 0 : .9});
+  if(!has) return;
+  L.polyline(state.tourRoute.coords, {color: '#fff', weight: 9, opacity: .9}).addTo(tourLayer);
+  L.polyline(state.tourRoute.coords, {color: '#1D4F91', weight: 5, opacity: .95}).addTo(tourLayer);
+}
+function renderPlan(){
+  if(!state.route) return '<p class="empty">Zuerst eine Route suchen. Danach fügst du Abstecher mit „+“ hinzu und planst hier deinen Tag.</p>';
+  const T = state.tourRoute;
+  const head = `<div class="plan-head"><label class="f">Abfahrt<input type="time" id="dep" value="${esc(state.plan.dep)}"></label>
+    <span class="note" style="padding-bottom:9px">${state.tour.length ? `${state.tour.length} Abstecher in der Route` : 'Noch keine Abstecher'}</span></div>`;
+  if(state.tourBusy || !T) return head + '<div class="shimmer" style="height:60px;margin-bottom:10px"></div><div class="shimmer" style="height:180px"></div>';
   const [hh, mm] = (state.plan.dep || '09:00').split(':').map(Number);
   let t = new Date(); t.setHours(hh, mm, 0, 0);
   let drive = 0, stay = 0; const rows = [];
-  wps.forEach((w, i) => {
-    if(i > 0){ drive += legs[i-1]; t = new Date(t.getTime() + legs[i-1]*1000); rows.push(`<li class="drive">🚗 ${fmtDur(legs[i-1])} Fahrt</li>`); }
+  T.wps.forEach((w, i) => {
+    if(i > 0){ const d = T.legs[i-1] || 0; drive += d; t = new Date(t.getTime() + d*1000); rows.push(`<li class="drive">🚗 ${fmtDur(d)} Fahrt</li>`); }
     if(w.kind === 'stop'){
-      const cls = i === 0 ? 'start' : i === wps.length-1 ? 'end' : '';
-      rows.push(`<li class="tl ${cls}"><time>${fmtTime(t)}</time><span class="pip" aria-hidden="true"></span><div class="tl-body"><strong>${esc(w.label)}</strong><small>${i === 0 ? 'Abfahrt' : i === wps.length-1 ? 'Ankunft am Ziel' : 'Zwischenstopp'}</small></div></li>`);
+      const cls = i === 0 ? 'start' : i === T.wps.length-1 ? 'end' : '';
+      rows.push(`<li class="tl ${cls}"><time>${fmtTime(t)}</time><span class="pip" aria-hidden="true"></span><div class="tl-body"><strong>${esc(w.label)}</strong><small>${i === 0 ? 'Abfahrt' : i === T.wps.length-1 ? 'Ankunft am Ziel' : 'Zwischenstopp'}</small></div></li>`);
     }else{
       const r = w.r, st = stayOf(r);
       rows.push(`<li class="tl place"><time>${fmtTime(t)}</time><span class="pip" aria-hidden="true"></span><div class="tl-body">
-        <div class="tl-row"><span class="tile" style="width:30px;height:30px;font-size:1rem" aria-hidden="true">${r.s.e}</span><button type="button" class="link" data-open="${esc(r.id)}" style="text-decoration:none;color:inherit;font-weight:600">${esc(r.name)}</button></div>
+        <div class="tl-row"><span class="tile" style="width:30px;height:30px;font-size:1rem" aria-hidden="true">${r.s.e}</span><button type="button" class="link" data-open="${esc(r.id)}" style="text-decoration:none;color:inherit;font-weight:600">${esc(r.name || r.s.label)}</button></div>
         <div class="tl-row"><small>Aufenthalt</small><select data-stay="${esc(r.id)}" aria-label="Aufenthalt bei ${esc(r.name)}">${STAY_OPTS.map(o => `<option value="${o}"${o === st ? ' selected' : ''}>${fmtDur(o*60)}</option>`).join('')}</select>
-        <button type="button" class="link" data-skip="${esc(r.id)}">Auslassen</button></div>
+        <button type="button" class="link" data-tour="${esc(r.id)}">Entfernen</button></div>
         ${r.t.opening_hours ? `<small>Geöffnet: ${esc(r.t.opening_hours)}</small>` : ''}
       </div></li>`);
       stay += st*60; t = new Date(t.getTime() + st*60000);
     }
   });
-  const skipped = items.filter(r => state.plan.skip[r.id]);
-  const total = drive + stay;
-  const middle = wps.slice(1, -1);
-  out.innerHTML = `<p class="plan-sum">Ankunft am Ziel um <b>${fmtTime(t)}</b> Uhr. Unterwegs ${fmtDur(total)}, davon ${fmtDur(drive)} Fahrt und ${fmtDur(stay)} vor Ort.</p>
+  const links = gmapsLinks(T.wps);
+  const extra = Math.max(0, T.dur - state.route.dur);
+  return head + `<p class="plan-sum">Ankunft am Ziel um <b>${fmtTime(t)}</b> Uhr. Unterwegs ${fmtDur(drive + stay)}, davon ${fmtDur(drive)} Fahrt${state.tour.length ? ` (+${fmtDur(extra)} für Umwege)` : ''} und ${fmtDur(stay)} vor Ort.</p>
     <ol class="timeline">${rows.join('')}</ol>
-    ${skipped.length ? `<h3 class="section-title">Ausgelassen</h3><div class="chips">${skipped.map(r => `<button type="button" class="chip sm" data-unskip="${esc(r.id)}">${r.s.e} ${esc(r.name)} wieder aufnehmen</button>`).join('')}</div>` : ''}
-    <div class="btn-row"><a class="btn primary" id="gmaps" href="${gmapsRoute(wps)}" target="_blank" rel="noopener">In Google Maps starten</a></div>
-    ${middle.length > 9 ? '<p class="note">Google Maps übernimmt höchstens 9 Zwischenziele, die ersten 9 werden übergeben.</p>' : ''}`;
+    <h3 class="section-title">Route exportieren</h3>
+    <div class="btn-row" style="margin-top:0">
+      ${links.length === 1 ? `<a class="btn primary" href="${links[0]}" target="_blank" rel="noopener">In Google Maps öffnen</a>`
+        : links.map((l, i) => `<a class="btn primary" href="${l}" target="_blank" rel="noopener">Google Maps, Teil ${i+1}</a>`).join('')}
+      <button type="button" class="btn" id="gpx">GPX-Datei laden</button>
+    </div>
+    <p class="note">${links.length > 1 ? 'Google Maps nimmt höchstens 9 Zwischenziele pro Link, deshalb ist die Tour aufgeteilt. Teil 2 beginnt dort, wo Teil 1 endet. ' : ''}Die GPX-Datei funktioniert mit OsmAnd, Komoot, Garmin und den meisten anderen Navi-Apps.</p>`;
 }
-function gmapsRoute(wps){
-  const c = w => `${w.p[0].toFixed(5)},${w.p[1].toFixed(5)}`;
-  const mid = wps.slice(1, -1).slice(0, 9).map(c).join('|');
-  return `https://www.google.com/maps/dir/?api=1&origin=${c(wps[0])}&destination=${c(wps[wps.length-1])}${mid ? '&waypoints=' + enc(mid) : ''}&travelmode=driving`;
+const pt = w => `${w.p[0].toFixed(5)},${w.p[1].toFixed(5)}`;
+function gmapsLinks(wps){
+  const links = [];
+  for(let i = 0; i < wps.length - 1; i += 10){
+    const part = wps.slice(i, Math.min(i + 11, wps.length));
+    const mid = part.slice(1, -1).map(pt).join('|');
+    links.push(`https://www.google.com/maps/dir/?api=1&origin=${pt(part[0])}&destination=${pt(part[part.length-1])}${mid ? '&waypoints=' + enc(mid) : ''}&travelmode=driving`);
+  }
+  return links;
+}
+function downloadGpx(){
+  const T = state.tourRoute; if(!T) return;
+  const x = s => esc(s).replace(/&#39;/g, '&apos;');
+  const name = `${state.stops[0]} nach ${state.stops[state.stops.length-1]}`;
+  const wpts = T.wps.map(w => `<wpt lat="${w.p[0]}" lon="${w.p[1]}"><name>${x(w.label)}</name></wpt>`).join('\n');
+  const rte = T.wps.map(w => `<rtept lat="${w.p[0]}" lon="${w.p[1]}"><name>${x(w.label)}</name></rtept>`).join('\n');
+  const step = Math.max(1, Math.floor(T.coords.length / 4000));
+  const trk = T.coords.filter((_, i) => i % step === 0 || i === T.coords.length-1).map(([la, lo]) => `<trkpt lat="${la.toFixed(6)}" lon="${lo.toFixed(6)}"/>`).join('');
+  const gpx = `<?xml version="1.0" encoding="UTF-8"?>
+<gpx version="1.1" creator="Abstecher-Finder" xmlns="http://www.topografix.com/GPX/1/1">
+<metadata><name>${x(name)}</name></metadata>
+${wpts}
+<rte><name>${x(name)}</name>
+${rte}
+</rte>
+<trk><name>${x(name)}</name><trkseg>${trk}</trkseg></trk>
+</gpx>`;
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([gpx], {type: 'application/gpx+xml'}));
+  a.download = 'abstecher-tour.gpx';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 2000);
+  toast('GPX-Datei gespeichert');
 }
 $('pane').addEventListener('change', e => {
-  if(e.target.id === 'dep'){ state.plan.dep = e.target.value || '09:00'; savePlan(); computePlan(); }
-  const st = e.target.dataset.stay; if(st){ state.plan.stay[st] = +e.target.value; savePlan(); computePlan(); }
+  if(e.target.id === 'dep'){ state.plan.dep = e.target.value || '09:00'; savePlan(); render(); }
+  const st = e.target.dataset.stay; if(st){ state.plan.stay[st] = +e.target.value; savePlan(); render(); }
 });
 
 // ===================== Teilen =====================
@@ -550,6 +613,7 @@ function shareParams(withTips){
     const ids = Object.keys(state.favs).filter(id => state.byId.has(id)).slice(0, 40);
     if(ids.length) p.set('t', ids.join(','));
   }
+  if(state.tour.length) p.set('w', state.tour.join(','));
   return p;
 }
 function readHash(){
@@ -562,13 +626,14 @@ function readHash(){
   if(p.has('x')) state.extras = new Set(p.get('x').split(','));
   if(p.has('k')) state.kw = p.get('k');
   if(p.has('t')) state.tips = new Set(p.get('t').split(','));
+  if(p.has('w')) state.pendingTour = p.get('w').split(',');
   return true;
 }
 $('share').addEventListener('click', async () => {
   const p = shareParams(true);
   const url = location.origin + location.pathname + '#' + p.toString();
   const tipCount = p.get('t') ? p.get('t').split(',').length : 0;
-  const text = `Abstecher von ${state.stops[0]} nach ${state.stops[state.stops.length-1]}` + (tipCount ? `, mit ${tipCount} Tipp${tipCount > 1 ? 's' : ''} von mir` : '');
+  const text = `Abstecher von ${state.stops[0]} nach ${state.stops[state.stops.length-1]}` + (state.tour.length ? `, Tour mit ${state.tour.length} Abstecher${state.tour.length > 1 ? 'n' : ''}` : tipCount ? `, mit ${tipCount} Tipp${tipCount > 1 ? 's' : ''} von mir` : '');
   try{
     if(navigator.share){ await navigator.share({title: 'Abstecher-Finder', text, url}); }
     else{ await navigator.clipboard.writeText(url); toast('Link kopiert'); }
@@ -604,8 +669,8 @@ document.addEventListener('click', e => {
   const f = e.target.closest('[data-fav]'); if(f){ toggleFav(f.dataset.fav, f); return; }
   const o = e.target.closest('[data-open]');
   if(o){ openDetail(o.dataset.open); return; }
-  const sk = e.target.closest('[data-skip]'); if(sk){ state.plan.skip[sk.dataset.skip] = true; savePlan(); render(); return; }
-  const us = e.target.closest('[data-unskip]'); if(us){ delete state.plan.skip[us.dataset.unskip]; savePlan(); render(); }
+  const tr = e.target.closest('[data-tour]'); if(tr){ toggleTour(tr.dataset.tour); return; }
+  if(e.target.closest('#gpx')) downloadGpx();
 });
 
 // ===================== Start =====================
@@ -628,6 +693,6 @@ document.addEventListener('click', e => {
   const fromLink = readHash();
   $('radius').value = state.radius/1000; $('kw').value = state.kw; syncSliders();
   renderStops(); render();
-  if(fromLink){ if(state.tips.size) state.tab = 'favs'; search(); }
+  if(fromLink){ if(state.pendingTour?.length) state.tab = 'plan'; else if(state.tips.size) state.tab = 'favs'; search(); }
   if('serviceWorker' in navigator && location.protocol === 'https:') navigator.serviceWorker.register('sw.js').catch(() => {});
 })();
