@@ -5,85 +5,101 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Abstecher-Finder</title>
 <meta name="description" content="Freizeitparks, Spaßbäder, Zoos und mehr entlang deiner Route finden.">
-<meta name="theme-color" content="#1D4F91">
+<meta name="theme-color" content="#F4F4F4" id="themeColor">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
+<script>
+  // Theme vor dem ersten Zeichnen setzen, damit nichts aufblitzt
+  (function(){ try{ var s = JSON.parse(localStorage.getItem('af-settings')) || {}; var t = s.theme || 'auto';
+    if(t === 'auto') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+    document.documentElement.dataset.theme = t; }catch(e){ document.documentElement.dataset.theme = 'light'; } })();
+</script>
 </head>
 <body>
 <div class="app">
-  <section class="controls">
-    <header class="sign">
-      <div class="sign-text">
-        <h1>Abstecher-Finder</h1>
-        <p id="databadge">Daten werden geladen …</p>
-      </div>
-      <button type="button" class="ghost" id="share" disabled>Teilen</button>
-      <div class="progress" id="progress" hidden><span></span></div>
-    </header>
-
-    <form id="f" autocomplete="off">
-      <ol id="stops" class="stops"></ol>
-      <button type="button" class="link" id="addstop">+ Zwischenstopp</button>
-      <label class="f">Suchkorridor um die Route
-        <span class="slider"><input type="range" id="radius" min="2" max="25" value="8"><output id="rv">8 km</output></span>
-      </label>
-      <button class="go" id="go" type="submit">Route suchen</button>
-    </form>
-    <datalist id="places"></datalist>
-    <p id="status" role="status"></p>
-
-    <div class="step">
-      <h2>Kategorie <small>mehrere möglich</small></h2>
-      <div class="chips" id="mains"></div>
+  <header class="topbar">
+    <button type="button" class="route-pill" id="routeBtn" aria-haspopup="dialog">
+      <span class="route-text">
+        <strong id="routeTitle">Route planen</strong>
+        <small id="routeSub">Start und Ziel eingeben</small>
+      </span>
+      <span class="pill-icon" data-icon="edit" aria-hidden="true"></span>
+    </button>
+    <div class="top-actions">
+      <button type="button" class="icon-btn" id="shareBtn" aria-label="Route teilen" data-icon="share" disabled></button>
+      <button type="button" class="icon-btn" id="settingsBtn" aria-label="Einstellungen" data-icon="gear"></button>
     </div>
-    <div class="step" id="subwrap">
-      <h2>Genauer <small>leer lassen = alles aus der Kategorie</small></h2>
-      <div id="subs"></div>
-    </div>
-    <div class="step">
-      <h2>Extras <small>alle gewählten müssen passen</small></h2>
-      <div class="chips" id="extras"></div>
-    </div>
+    <div class="progress" id="progress" hidden><span></span></div>
+  </header>
 
-    <details class="box">
-      <summary>Mehr Optionen</summary>
-      <div class="box-body">
-        <label class="f">Stichwort im Namen<input type="search" id="kw" placeholder="z. B. Schwarzlicht, Piraten, Burg …"></label>
-        <label class="f">Maximaler Umweg (Luftlinie zur Route)
-          <span class="slider"><input type="range" id="maxoff" min="0.5" max="8" step="0.5" value="8"><output id="mv">8 km</output></span>
-        </label>
-        <label class="chk"><input type="checkbox" id="named" checked> Nur Orte mit Namen</label>
-        <button type="button" class="link" id="reset">Filter zurücksetzen</button>
-      </div>
-    </details>
-  </section>
-
-  <div class="map-wrap">
+  <main class="map-area">
     <div id="map"></div>
-    <button type="button" class="fab" id="surprise" aria-label="Überrasch mich: zufälliges Ziel zeigen"><span class="die" aria-hidden="true">🎲</span> Überrasch mich</button>
-  </div>
+    <button type="button" class="dice" id="diceBtn" aria-label="Überrasch mich: zufälliges Ziel zeigen"><span data-icon="dice" aria-hidden="true"></span><span class="dice-label">Überrasch mich</span></button>
+  </main>
 
-  <section class="list-wrap">
-    <div class="tabs" role="tablist" id="tabs">
-      <button type="button" role="tab" data-tab="hits" aria-selected="true">Treffer <span id="nhits"></span></button>
-      <button type="button" role="tab" data-tab="favs" aria-selected="false">Merkliste <span id="nfavs"></span></button>
-      <button type="button" role="tab" data-tab="plan" aria-selected="false">Meine Tour <span id="ntour"></span></button>
+  <aside class="panel" id="panel" aria-label="Abstecher">
+    <div class="panel-drag" id="panelDrag">
+      <button type="button" class="grip" id="grip" aria-label="Liste größer oder kleiner"></button>
+      <div class="panel-head">
+        <div class="panel-title">
+          <h2 id="listTitle">Abstecher</h2>
+          <p id="listSub">Plane zuerst eine Route</p>
+        </div>
+        <div class="panel-tools">
+          <button type="button" class="tool-btn" id="favToggle" aria-pressed="false" aria-label="Nur gemerkte Ziele zeigen"><span data-icon="star" aria-hidden="true"></span><span id="favCount"></span></button>
+          <button type="button" class="filter-btn" id="filterBtn" aria-haspopup="dialog"><span data-icon="filter" aria-hidden="true"></span>Filter<span class="badge" id="filterBadge" hidden></span></button>
+        </div>
+      </div>
     </div>
-    <div id="pane"></div>
-  </section>
+    <div class="quick-cats" id="quickCats" aria-label="Kategorien"></div>
+    <div class="panel-body" id="list"></div>
+    <div class="tourbar" id="tourbar" hidden></div>
+  </aside>
 </div>
 
-<div class="backdrop" id="backdrop" hidden></div>
-<aside class="sheet" id="sheet" aria-hidden="true" aria-labelledby="d-title" role="dialog">
-  <div class="grip" aria-hidden="true"></div>
-  <button type="button" class="close" id="d-close" aria-label="Schließen">✕</button>
-  <div id="d-body"></div>
-</aside>
+<div class="scrim" id="scrim" hidden></div>
+
+<section class="sheet" id="routeSheet" role="dialog" aria-modal="true" aria-labelledby="routeSheetTitle" hidden>
+  <div class="sheet-head"><h2 id="routeSheetTitle">Route planen</h2><button type="button" class="icon-btn flat" data-close aria-label="Schließen" data-icon="x"></button></div>
+  <form class="sheet-body" id="routeForm" autocomplete="off">
+    <ol class="stops" id="stops"></ol>
+    <button type="button" class="text-btn" id="addStop">+ Zwischenstopp</button>
+    <label class="field">So weit dürfen Abstecher von der Route entfernt sein
+      <span class="slider"><input type="range" id="radius" min="2" max="25" value="8"><output id="radiusOut">8 km</output></span>
+    </label>
+    <p class="status" id="routeStatus" role="status"></p>
+    <button type="submit" class="primary-btn" id="goBtn">Route suchen</button>
+  </form>
+  <datalist id="places"></datalist>
+</section>
+
+<section class="sheet" id="filterSheet" role="dialog" aria-modal="true" aria-labelledby="filterSheetTitle" hidden>
+  <div class="sheet-head"><h2 id="filterSheetTitle">Filter</h2><div class="head-actions"><button type="button" class="text-btn" id="resetFilters">Zurücksetzen</button><button type="button" class="icon-btn flat" data-close aria-label="Filter schließen" data-icon="x"></button></div></div>
+  <div class="sheet-body" id="filterBody"></div>
+  <div class="sheet-foot"><button type="button" class="primary-btn" id="applyFilters" data-close>Ziele anzeigen</button></div>
+</section>
+
+<section class="sheet detail" id="detailSheet" role="dialog" aria-modal="true" aria-labelledby="detailTitle" hidden>
+  <button type="button" class="icon-btn hero-close" data-close aria-label="Schließen" data-icon="x"></button>
+  <div id="detailBody"></div>
+</section>
+
+<section class="sheet" id="tourSheet" role="dialog" aria-modal="true" aria-labelledby="tourSheetTitle" hidden>
+  <div class="sheet-head"><h2 id="tourSheetTitle">Deine Tour</h2><button type="button" class="icon-btn flat" data-close aria-label="Schließen" data-icon="x"></button></div>
+  <div class="sheet-body" id="tourBody"></div>
+  <div class="sheet-foot" id="tourFoot"></div>
+</section>
+
+<section class="sheet" id="settingsSheet" role="dialog" aria-modal="true" aria-labelledby="settingsSheetTitle" hidden>
+  <div class="sheet-head"><h2 id="settingsSheetTitle">Einstellungen</h2><button type="button" class="icon-btn flat" data-close aria-label="Schließen" data-icon="x"></button></div>
+  <div class="sheet-body" id="settingsBody"></div>
+</section>
+
 <div id="toast" role="status" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
