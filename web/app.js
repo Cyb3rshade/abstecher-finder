@@ -221,7 +221,7 @@ async function search(ev){
     drawRoute(true);
     map.fitBounds(L.latLngBounds(coords), {...mapPadding(), animate: false});
     setPanel('half');
-    $('listSub').textContent = 'Abstecher werden geladen …'; setProgress(0);
+    $('listSub').textContent = 'Sidequests werden geladen …'; setProgress(0);
 
     const dense = sampleRoute(coords, 300);
     let s=90, w=180, n=-90, e=-180;
@@ -341,7 +341,7 @@ function favEntries(){
 }
 function renderList(items){
   const R = state.route;
-  if(!R) return `<div class="empty"><p>Gib Start und Ziel ein. Danach zeige ich dir alles, was sich unterwegs als Abstecher lohnt.</p><button type="button" class="primary-btn" data-open-route>Route planen</button></div>`;
+  if(!R) return `<div class="empty"><p><b style="color:var(--text)">Sidequest findet Ausflugsziele entlang deiner Route.</b><br>Gib Start und Ziel ein, dann siehst du Freizeitparks, Spaßbäder, Zoos, Burgen und mehr, die unterwegs nur einen kleinen Umweg entfernt sind.</p><button type="button" class="primary-btn" data-open-route>Route planen</button></div>`;
   if(state.favOnly){
     const favs = favEntries().sort((a, b) => (a.km ?? 1e12) - (b.km ?? 1e12));
     const tips = [...state.tips].map(id => state.byId.get(id)).filter(r => r && !state.favs[r.id]);
@@ -369,7 +369,7 @@ function renderTourbar(){
   if(!state.route){ bar.hidden = true; return; }
   bar.hidden = false;
   const n = state.tour.length, T = state.tourRoute, extra = T ? Math.max(0, T.dur - state.route.dur) : 0, arr = arrival();
-  bar.innerHTML = `<div class="t"><strong>${n ? `Tour mit ${n} Abstecher${n > 1 ? 'n' : ''}` : 'Noch keine Abstecher'}</strong>
+  bar.innerHTML = `<div class="t"><strong>${n ? `Tour mit ${n} Sidequest${n > 1 ? 's' : ''}` : 'Noch keine Sidequests'}</strong>
     <small>${n ? `+${fmtDur(extra)} Umweg${arr ? ', Ankunft ca. ' + fmtTime(arr) : ''}` : 'Tippe auf + bei einem Ziel'}</small></div>
     <button type="button" data-open-tour>${n ? 'Tour ansehen' : 'Route öffnen'}</button>`;
 }
@@ -378,7 +378,7 @@ function render(animate=false){
   renderMarkers(items, animate);
   renderQuickCats();
   const R = state.route;
-  $('listTitle').textContent = state.favOnly ? 'Gemerkt' : R ? `${items.length} Abstecher` : 'Abstecher';
+  $('listTitle').textContent = state.favOnly ? 'Gemerkt' : R ? `${items.length} Sidequest${items.length === 1 ? '' : 's'}` : 'Sidequests';
   $('listSub').textContent = R ? `entlang ${fmtKm(R.dist)} km, nach Strecke sortiert` : 'Plane zuerst eine Route';
   const rc = refineCount(); $('filterBadge').hidden = !rc; $('filterBadge').textContent = rc;
   const fc = Object.keys(state.favs).length; $('favCount').textContent = fc || '';
@@ -389,7 +389,7 @@ function render(animate=false){
 }
 function renderTopbar(){
   const R = state.route;
-  if(!R){ $('routeTitle').textContent = 'Route planen'; $('routeSub').textContent = 'Start und Ziel eingeben'; return; }
+  if(!R){ $('routeTitle').textContent = 'Route planen'; $('routeSub').textContent = 'Sidequest findet Ausflugsziele unterwegs'; return; }
   const short = s => s.split(',')[0];
   $('routeTitle').innerHTML = `${esc(short(state.stops[0]))}<span class="sep">/</span>${esc(short(state.stops[state.stops.length-1]))}`;
   const cats = state.mains.size ? state.MAIN.filter(m => state.mains.has(m.id)).map(m => m.label).join(', ') : 'alle Kategorien';
@@ -581,11 +581,11 @@ function renderTour(){
     }
   });
   const extra = Math.max(0, T.dur - R.dur), n = state.tour.length;
-  body.innerHTML = `<div class="tour-top"><p class="tour-sum" style="margin:0">${fmtDur(T.dur)} Fahrt${n ? `, davon ${fmtDur(extra)} für ${n} Abstecher` : ''}${settings.stay && stay ? `, dazu ${fmtDur(stay)} vor Ort` : ''}</p>
+  body.innerHTML = `<div class="tour-top"><p class="tour-sum" style="margin:0">${fmtDur(T.dur)} Fahrt${n ? `, davon ${fmtDur(extra)} für ${n} Sidequest${n > 1 ? 's' : ''}` : ''}${settings.stay && stay ? `, dazu ${fmtDur(stay)} vor Ort` : ''}</p>
       <label>Abfahrt<input type="time" id="dep" value="${esc(state.plan.dep)}"></label></div>
     <ol class="timeline">${rows.join('')}</ol>
-    ${n ? '' : '<p class="note">Noch keine Abstecher in der Tour. Tippe in der Liste auf +.</p>'}
-    <button type="button" class="text-btn" data-close style="padding-left:0">Weitere Abstecher hinzufügen</button>`;
+    ${n ? '' : '<p class="note">Noch keine Sidequests in der Tour. Tippe in der Liste auf +.</p>'}
+    <button type="button" class="text-btn" data-close style="padding-left:0">Weitere Sidequests hinzufügen</button>`;
   const links = gmapsLinks(T.wps);
   foot.innerHTML = `${links.map((l, i) => `<a class="primary-btn" href="${l}" target="_blank" rel="noopener"${i ? ' style="margin-top:8px"' : ''}>${icon('nav', 20, 2)}${links.length > 1 ? `Google Maps, Teil ${i+1} von ${links.length}` : 'In Google Maps starten'}</a>`).join('')}
     <div class="btn-row"><button type="button" class="secondary-btn" id="gpxBtn">${icon('download', 18)}GPX-Datei</button><button type="button" class="secondary-btn" id="tourShare">${icon('share', 18)}Tour teilen</button></div>
@@ -609,7 +609,7 @@ function downloadGpx(){
   const x = s => esc(s).replace(/&#39;/g, '&apos;'), name = `${state.stops[0]} nach ${state.stops[state.stops.length-1]}`;
   const step = Math.max(1, Math.floor(T.coords.length / 4000));
   const gpx = `<?xml version="1.0" encoding="UTF-8"?>
-<gpx version="1.1" creator="Abstecher-Finder" xmlns="http://www.topografix.com/GPX/1/1">
+<gpx version="1.1" creator="Sidequest by Cybershade" xmlns="http://www.topografix.com/GPX/1/1">
 <metadata><name>${x(name)}</name></metadata>
 ${T.wps.map(w => `<wpt lat="${w.p[0]}" lon="${w.p[1]}"><name>${x(w.label)}</name></wpt>`).join('\n')}
 <rte><name>${x(name)}</name>
@@ -617,7 +617,7 @@ ${T.wps.map(w => `<rtept lat="${w.p[0]}" lon="${w.p[1]}"><name>${x(w.label)}</na
 </rte>
 <trk><name>${x(name)}</name><trkseg>${T.coords.filter((_, i) => i % step === 0 || i === T.coords.length-1).map(([la, lo]) => `<trkpt lat="${la.toFixed(6)}" lon="${lo.toFixed(6)}"/>`).join('')}</trkseg></trk>
 </gpx>`;
-  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([gpx], {type: 'application/gpx+xml'})); a.download = 'abstecher-tour.gpx';
+  const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([gpx], {type: 'application/gpx+xml'})); a.download = 'sidequest-tour.gpx';
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('GPX-Datei gespeichert');
 }
 
@@ -631,10 +631,10 @@ function renderSettings(){
       `<button type="button" data-theme-set="${k}" aria-pressed="${settings.theme === k}">${icon(i, 22, 1.8)}${l}</button>`).join('')}</div>
     <p class="note">Automatisch folgt der Einstellung deines Geräts.</p>
     <div class="group-label">Tour planen</div>
-    <div class="set-group"><div class="set-row"><div class="t"><b>Aufenthaltsdauer planen</b><small>Pro Abstecher eine Dauer angeben, die Ankunftszeit rechnet sie mit ein</small></div>${sw('setStay', settings.stay, 'Aufenthaltsdauer planen')}</div></div>
+    <div class="set-group"><div class="set-row"><div class="t"><b>Aufenthaltsdauer planen</b><small>Pro Sidequest eine Dauer angeben, die Ankunftszeit rechnet sie mit ein</small></div>${sw('setStay', settings.stay, 'Aufenthaltsdauer planen')}</div></div>
     <div class="group-label">Suche</div>
     <div class="set-group">
-      <div class="set-row"><div class="t"><b>Standard-Korridor</b><small>Wie weit Abstecher von der Route entfernt sein dürfen</small></div>
+      <div class="set-row"><div class="t"><b>Standard-Korridor</b><small>Wie weit Sidequests von der Route entfernt sein dürfen</small></div>
         <select id="setRadius" aria-label="Standard-Korridor">${[2, 5, 8, 10, 15, 20, 25].map(v => `<option value="${v}"${settings.radius === v ? ' selected' : ''}>${v} km</option>`).join('')}</select></div>
       <div class="set-row"><div class="t"><b>Nur Orte mit Namen</b><small>Blendet unbenannte Badestellen, Aussichtspunkte und Ähnliches aus</small></div>${sw('setNamed', settings.named, 'Nur Orte mit Namen')}</div>
     </div>
@@ -642,7 +642,8 @@ function renderSettings(){
     <div class="set-group">
       <div class="set-row"><div class="t"><b>Kartendaten</b><small>OpenStreetMap, ${esc(meta)}</small></div></div>
       <div class="set-row"><div class="t"><b>Merkliste leeren</b><small>${Object.keys(state.favs).length} gemerkte Ziele auf diesem Gerät</small></div><button type="button" class="secondary-btn" style="flex:none;padding:0 14px" id="clearFavs">Leeren</button></div>
-    </div>`;
+    </div>
+    <p class="signature"><svg class="i" width="28" height="28" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#000"/><path d="M366 157 A148 148 0 1 0 366 355" fill="none" stroke="#C6FF3D" stroke-width="66"/><rect x="72" y="251" width="74" height="10" rx="5" fill="#5CE1FF"/></svg><span><b>Sidequest</b> by Cybershade</span></p>`;
 }
 $('settingsBody').addEventListener('click', e => {
   const th = e.target.closest('[data-theme-set]');
@@ -682,8 +683,8 @@ function readHash(){
 }
 async function share(){
   const p = shareParams(true), url = location.origin + location.pathname + '#' + p.toString(), n = state.tour.length;
-  const text = `Abstecher von ${state.stops[0]} nach ${state.stops[state.stops.length-1]}${n ? `, Tour mit ${n} Abstecher${n > 1 ? 'n' : ''}` : ''}`;
-  try{ if(navigator.share) await navigator.share({title: 'Abstecher-Finder', text, url}); else{ await navigator.clipboard.writeText(url); toast('Link kopiert'); } }
+  const text = `Sidequest: Ausflugsziele von ${state.stops[0]} nach ${state.stops[state.stops.length-1]}${n ? `, Tour mit ${n} Sidequest${n > 1 ? 's' : ''}` : ''}`;
+  try{ if(navigator.share) await navigator.share({title: 'Sidequest', text, url}); else{ await navigator.clipboard.writeText(url); toast('Link kopiert'); } }
   catch(e){ if(e.name !== 'AbortError') toast('Teilen nicht möglich'); }
 }
 $('shareBtn').addEventListener('click', share);

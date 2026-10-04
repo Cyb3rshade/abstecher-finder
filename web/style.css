@@ -234,6 +234,8 @@ input:focus,select:focus{outline:none;border-color:var(--a1);box-shadow:0 0 0 3p
 .switch[aria-checked=true]{background:var(--a1)}
 .switch[aria-checked=true]::after{transform:translateX(20px);background:var(--on1)}
 
+.signature{display:flex;align-items:center;justify-content:center;gap:10px;margin:28px 0 8px;font-size:14px;color:var(--muted)}
+.signature b{color:var(--text);font-stretch:125%}
 /* ===== Karte: Pins ===== */
 .pin{width:18px;height:18px;border-radius:50%;background:var(--pc);box-shadow:0 0 0 2.5px var(--pinring),0 2px 6px rgba(0,0,0,.35);transition:transform .2s var(--ease)}
 .pin.tour{width:22px;height:22px;box-shadow:0 0 0 2.5px var(--pinring),0 0 0 6px var(--a2),0 2px 8px rgba(0,0,0,.4)}

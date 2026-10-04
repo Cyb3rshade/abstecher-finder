@@ -3,14 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Abstecher-Finder</title>
-<meta name="description" content="Freizeitparks, Spaßbäder, Zoos und mehr entlang deiner Route finden.">
+<title>Sidequest – Ausflugsziele entlang deiner Route</title>
+<meta name="description" content="Sidequest by Cybershade: Freizeitparks, Spaßbäder, Zoos und mehr entlang deiner Route finden.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Sidequest by Cybershade">
+<meta property="og:title" content="Sidequest – Ausflugsziele entlang deiner Route">
+<meta property="og:description" content="Gib Start und Ziel ein und finde Freizeitparks, Spaßbäder, Zoos, Burgen und mehr, die unterwegs nur einen kleinen Umweg entfernt sind.">
 <meta name="theme-color" content="#F4F4F4" id="themeColor">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <link rel="icon" href="favicon-32.png" sizes="32x32" type="image/png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<meta name="apple-mobile-web-app-title" content="Abstecher">
+<meta name="apple-mobile-web-app-title" content="Sidequest">
+<meta name="application-name" content="Sidequest">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@62..125,400..800&display=swap" rel="stylesheet">
@@ -44,12 +49,12 @@
     <button type="button" class="dice" id="diceBtn" aria-label="Überrasch mich: zufälliges Ziel zeigen"><span data-icon="dice" aria-hidden="true"></span><span class="dice-label">Überrasch mich</span></button>
   </main>
 
-  <aside class="panel" id="panel" aria-label="Abstecher">
+  <aside class="panel" id="panel" aria-label="Sidequests">
     <div class="panel-drag" id="panelDrag">
       <button type="button" class="grip" id="grip" aria-label="Liste größer oder kleiner"></button>
       <div class="panel-head">
         <div class="panel-title">
-          <h2 id="listTitle">Abstecher</h2>
+          <h2 id="listTitle">Sidequests</h2>
           <p id="listSub">Plane zuerst eine Route</p>
         </div>
         <div class="panel-tools">
@@ -71,7 +76,7 @@
   <form class="sheet-body" id="routeForm" autocomplete="off">
     <ol class="stops" id="stops"></ol>
     <button type="button" class="text-btn" id="addStop">+ Zwischenstopp</button>
-    <label class="field">So weit dürfen Abstecher von der Route entfernt sein
+    <label class="field">So weit dürfen Sidequests von der Route entfernt sein
       <span class="slider"><input type="range" id="radius" min="2" max="25" value="8"><output id="radiusOut">8 km</output></span>
     </label>
     <p class="status" id="routeStatus" role="status"></p>

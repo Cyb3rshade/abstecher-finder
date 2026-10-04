@@ -1,7 +1,7 @@
 {
-  "name": "Abstecher-Finder",
-  "short_name": "Abstecher",
-  "description": "Freizeitparks, Spaßbäder, Zoos und mehr entlang deiner Route.",
+  "name": "Sidequest by Cybershade",
+  "short_name": "Sidequest",
+  "description": "Ausflugsziele entlang deiner Route: Freizeitparks, Spaßbäder, Zoos und mehr.",
   "start_url": "./",
   "display": "standalone",
   "background_color": "#000000",

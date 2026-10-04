@@ -1,5 +1,5 @@
 // Offline-Cache: App-Dateien netzwerk-zuerst, Datenkacheln cache-zuerst (URLs sind pro Datenstand versioniert)
-const SHELL = 'af-shell-v7', DATA = 'af-data-v1';
+const SHELL = 'af-shell-v10', DATA = 'af-data-v1';
 const FILES = ['./', 'index.html', 'style.css', 'app.js', 'categories.json', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'apple-touch-icon.png'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(SHELL).then(c => c.addAll(FILES))); self.skipWaiting(); });
 self.addEventListener('activate', e => e.waitUntil(self.clients.claim()));
