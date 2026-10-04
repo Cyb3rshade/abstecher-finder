@@ -11,18 +11,19 @@
 <link rel="apple-touch-icon" href="icon-192.png">
 <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Barlow:wght@400;500;600&family=Barlow+Condensed:wght@500;600;700&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
 <div class="app">
   <section class="controls">
     <header class="sign">
-      <div>
+      <div class="sign-text">
         <h1>Abstecher-Finder</h1>
         <p id="databadge">Daten werden geladen …</p>
       </div>
-      <button type="button" class="share" id="share" disabled>Teilen</button>
+      <button type="button" class="ghost" id="share" disabled>Teilen</button>
+      <div class="progress" id="progress" hidden><span></span></div>
     </header>
 
     <form id="f" autocomplete="off">
@@ -34,7 +35,7 @@
       <button class="go" id="go" type="submit">Route suchen</button>
     </form>
     <datalist id="places"></datalist>
-    <div id="status" role="status"></div>
+    <p id="status" role="status"></p>
 
     <div class="step">
       <h2>Kategorie <small>mehrere möglich</small></h2>
@@ -62,16 +63,27 @@
     </details>
   </section>
 
-  <div id="map"></div>
+  <div class="map-wrap">
+    <div id="map"></div>
+    <button type="button" class="fab" id="surprise" aria-label="Überrasch mich: zufälliges Ziel zeigen"><span class="die" aria-hidden="true">🎲</span> Überrasch mich</button>
+  </div>
 
   <section class="list-wrap">
-    <div class="tabs" role="tablist">
+    <div class="tabs" role="tablist" id="tabs">
       <button type="button" role="tab" data-tab="hits" aria-selected="true">Treffer <span id="nhits"></span></button>
       <button type="button" role="tab" data-tab="favs" aria-selected="false">Merkliste <span id="nfavs"></span></button>
+      <button type="button" role="tab" data-tab="plan" aria-selected="false">Tagesplan</button>
     </div>
-    <ol id="list"></ol>
+    <div id="pane"></div>
   </section>
 </div>
+
+<div class="backdrop" id="backdrop" hidden></div>
+<aside class="sheet" id="sheet" aria-hidden="true" aria-labelledby="d-title" role="dialog">
+  <div class="grip" aria-hidden="true"></div>
+  <button type="button" class="close" id="d-close" aria-label="Schließen">✕</button>
+  <div id="d-body"></div>
+</aside>
 <div id="toast" role="status" hidden></div>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
