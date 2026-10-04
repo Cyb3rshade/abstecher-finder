@@ -1,0 +1,77 @@
+name: Daten bauen und veröffentlichen
+
+on:
+  push:
+    branches: [main]
+  schedule:
+    - cron: '0 3 * * 1'      # jeden Montag 03:00 UTC frische OSM-Daten
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build-deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      # Einmalig: hochgeladene projekt.zip entpacken und als normale Dateien ins Repo übernehmen
+      - name: Projekt-ZIP entpacken
+        if: hashFiles('projekt.zip') != ''
+        run: |
+          unzip -o -q projekt.zip
+          git rm -q projekt.zip
+          git config user.name "github-actions[bot]"
+          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Projekt entpackt"
+          git push
+
+      - name: Kalenderwoche bestimmen
+        id: week
+        run: echo "kw=$(date +%G-%V)" >> "$GITHUB_OUTPUT"
+
+      # Der gefilterte Auszug wird pro Woche gecacht: Pushes am Code laden nicht jedes Mal 4 GB.
+      - name: Gefilterte OSM-Daten aus Cache
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: filtered.osm.pbf
+          key: osm-${{ steps.week.outputs.kw }}-${{ hashFiles('web/categories.json') }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Werkzeuge installieren
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq osmium-tool
+          pip install osmium
+
+      - name: Deutschland-Auszug laden und filtern
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          curl -fsSL -o germany.osm.pbf https://download.geofabrik.de/europe/germany-latest.osm.pbf
+          osmium tags-filter germany.osm.pbf $(python3 scripts/build_pois.py --filter web/categories.json) -o filtered.osm.pbf --overwrite
+          rm germany.osm.pbf
+
+      - name: Kacheln bauen
+        run: python3 scripts/build_pois.py web/categories.json filtered.osm.pbf web/data
+
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: web
+      - id: deploy
+        uses: actions/deploy-pages@v4
