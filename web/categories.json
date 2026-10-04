@@ -1,0 +1,41 @@
+{
+  "_hinweis": "Einzige Quelle für Kategorien. q = OSM-Tags; need = zusätzliche Bedingung (eine reicht); place = in/out. Reihenfolge zählt: speziellere Unterkategorien zuerst.",
+  "main": [
+    {"id":"action","e":"🏎️","label":"Action","on":true,"subs":[
+      {"id":"tpark","e":"🎢","label":"Freizeitpark","q":[["tourism","theme_park"]]},
+      {"id":"kart","e":"🏎️","label":"Kartbahn","q":[["sport","karting"]]},
+      {"id":"ropes","e":"🧗","label":"Kletter- & Hochseilpark","q":[["sport","climbing_adventure"],["leisure","high_ropes_course"]],"place":"out"},
+      {"id":"gym","e":"🧗","label":"Kletter- & Boulderhalle","q":[["sport","climbing"],["sport","bouldering"]],"need":[{"tag":"leisure","in":["sports_centre"]},{"has":"building"}],"place":"in"},
+      {"id":"tramp","e":"🤸","label":"Trampolinpark","q":[["leisure","trampoline_park"]],"place":"in"},
+      {"id":"laser","e":"🎯","label":"Lasertag","q":[["sport","laser_tag"],["leisure","laser_tag"]],"place":"in"},
+      {"id":"paint","e":"🎯","label":"Paintball","q":[["sport","paintball"]]},
+      {"id":"rodel","e":"🛷","label":"Sommerrodelbahn","q":[["attraction","summer_toboggan"]],"place":"out"}
+    ]},
+    {"id":"fun","e":"🎳","label":"Spiel & Spaß","on":true,"subs":[
+      {"id":"golf","e":"⛳","label":"Minigolf","q":[["leisure","miniature_golf"],["sport","miniature_golf"]]},
+      {"id":"foot","e":"⚽","label":"Fußballgolf","q":[["sport","footgolf"]],"place":"out"},
+      {"id":"bowl","e":"🎳","label":"Bowling","q":[["leisure","bowling_alley"]],"place":"in"},
+      {"id":"escape","e":"🔐","label":"Escape Room","q":[["leisure","escape_game"]],"place":"in"},
+      {"id":"play","e":"🧸","label":"Indoorspielplatz","q":[["leisure","indoor_play"]],"place":"in"}
+    ]},
+    {"id":"water","e":"🌊","label":"Wasser","on":true,"subs":[
+      {"id":"wpark","e":"🌊","label":"Spaßbad","q":[["leisure","water_park"]]},
+      {"id":"lake","e":"🏖️","label":"Badesee & Badestelle","q":[["leisure","bathing_place"],["leisure","swimming_area"]],"place":"out"},
+      {"id":"ski","e":"🏄","label":"Wasserski & Wakeboard","q":[["sport","water_ski"],["sport","wakeboarding"],["sport","wakeboard"]],"place":"out"}
+    ]},
+    {"id":"animals","e":"🦒","label":"Tiere & Natur","on":true,"subs":[
+      {"id":"wild","e":"🦌","label":"Wildpark","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["wildlife_park"]},{"name":"wild"}],"place":"out"},
+      {"id":"pet","e":"🐐","label":"Streichelzoo","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["petting_zoo"]},{"name":"streichel"}],"place":"out"},
+      {"id":"bird","e":"🦅","label":"Vogelpark & Falknerei","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["birds","falconry"]},{"name":"vogel|falk|adler"}],"place":"out"},
+      {"id":"zoo","e":"🦒","label":"Zoo & Tierpark","q":[["tourism","zoo"]],"place":"out"},
+      {"id":"tower","e":"🗼","label":"Aussichtsturm","q":[["tower:type","observation"]],"place":"out"}
+    ]},
+    {"id":"culture","e":"🏛️","label":"Kultur","on":false,"subs":[
+      {"id":"open","e":"🏘️","label":"Freilichtmuseum","q":[["tourism","museum"]],"need":[{"tag":"museum","in":["open_air"]},{"name":"freilicht"}],"place":"out"},
+      {"id":"tech","e":"🚂","label":"Technik & Verkehr","q":[["tourism","museum"]],"need":[{"tag":"museum","in":["technology","transport","railway","aviation","industry","science"]},{"name":"technik|eisenbahn|auto|luftfahrt|verkehr|motor|phaeno|science"}],"place":"in"},
+      {"id":"museum","e":"🏛️","label":"Museum","q":[["tourism","museum"]],"place":"in"},
+      {"id":"castle","e":"🏰","label":"Burg & Schloss","q":[["historic","castle"]]},
+      {"id":"abbey","e":"⛪","label":"Kloster","q":[["historic","monastery"],["amenity","monastery"]]}
+    ]}
+  ]
+}
