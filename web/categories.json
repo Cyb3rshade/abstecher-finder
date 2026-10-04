@@ -6,7 +6,7 @@
       {"id":"kart","e":"🏎️","label":"Kartbahn","q":[["sport","karting"]]},
       {"id":"ropes","e":"🧗","label":"Kletterwald & Hochseilpark","q":[["sport","climbing_adventure"],["leisure","high_ropes_course"]],"place":"out"},
       {"id":"gym","e":"🧗","label":"Kletter- & Boulderhalle","q":[["sport","climbing"],["sport","bouldering"]],"need":[{"tag":"leisure","in":["sports_centre"]},{"has":"building"}],"place":"in"},
-      {"id":"skihall","e":"⛷️","label":"Skihalle","q":[["sport","skiing"]],"need":[{"tag":"indoor","in":["yes"]},{"has":"building"},{"name":"skihalle|snow|alpincenter|ski-halle"}],"place":"in"},
+      {"id":"skihall","e":"⛷️","label":"Skihalle","q":[["sport","skiing"]],"need":[{"tag":"indoor","in":["yes"]},{"has":"building"},{"name":"skihalle|snow|alpincenter|ski-halle|skidome|skidôme"}],"place":"in"},
       {"id":"tramp","e":"🤸","label":"Trampolinpark","q":[["leisure","trampoline_park"]],"place":"in"},
       {"id":"laser","e":"🎯","label":"Lasertag","q":[["sport","laser_tag"],["leisure","laser_tag"]],"place":"in"},
       {"id":"paint","e":"🎯","label":"Paintball","q":[["sport","paintball"]]},
@@ -18,10 +18,10 @@
       {"id":"bowl","e":"🎳","label":"Bowling","q":[["leisure","bowling_alley"]],"place":"in"},
       {"id":"escape","e":"🔐","label":"Escape Room","q":[["leisure","escape_game"]],"place":"in"},
       {"id":"play","e":"🧸","label":"Indoorspielplatz","q":[["leisure","indoor_play"]],"place":"in"},
-      {"id":"advplay","e":"🛝","label":"Abenteuer- & Wasserspielplatz","q":[["leisure","playground"]],"need":[{"name":"abenteuer|erlebnis|wasserspiel|matsch"}],"place":"out"}
+      {"id":"advplay","e":"🛝","label":"Abenteuer- & Wasserspielplatz","q":[["leisure","playground"]],"need":[{"name":"abenteuer|erlebnis|wasserspiel|matsch|avontuur|aventure|przygod|dobrodruž"}],"place":"out"}
     ]},
     {"id":"wellness","e":"♨️","label":"Wellness","on":false,"subs":[
-      {"id":"therme","e":"♨️","label":"Therme","q":[["leisure","water_park"],["amenity","public_bath"],["leisure","sports_centre"]],"need":[{"tag":"bath:type","in":["thermal","hot_spring"]},{"name":"therm|sole|wellness"}],"place":"in"},
+      {"id":"therme","e":"♨️","label":"Therme","q":[["leisure","water_park"],["amenity","public_bath"],["leisure","sports_centre"]],"need":[{"tag":"bath:type","in":["thermal","hot_spring"]},{"name":"therm|sole|wellness|termy|lázn|lazn|bains"}],"place":"in"},
       {"id":"sauna","e":"🧖","label":"Sauna","q":[["leisure","sauna"],["amenity","sauna"]],"place":"in"}
     ]},
     {"id":"water","e":"🌊","label":"Wasser","on":true,"subs":[
@@ -30,22 +30,22 @@
       {"id":"ski","e":"🏄","label":"Wasserski & Wakeboard","q":[["sport","water_ski"],["sport","wakeboarding"],["sport","wakeboard"]],"place":"out"}
     ]},
     {"id":"animals","e":"🦒","label":"Tiere","on":true,"subs":[
-      {"id":"wild","e":"🦌","label":"Wildpark","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["wildlife_park"]},{"name":"wild"}],"place":"out"},
-      {"id":"pet","e":"🐐","label":"Streichelzoo","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["petting_zoo"]},{"name":"streichel"}],"place":"out"},
-      {"id":"bird","e":"🦅","label":"Vogelpark & Falknerei","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["birds","falconry"]},{"name":"vogel|falk|adler"}],"place":"out"},
+      {"id":"wild","e":"🦌","label":"Wildpark","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["wildlife_park"]},{"name":"wild|dierenpark|parc animalier|obora"}],"place":"out"},
+      {"id":"pet","e":"🐐","label":"Streichelzoo","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["petting_zoo"]},{"name":"streichel|kinderboerderij|ferme pédagogique|minizoo"}],"place":"out"},
+      {"id":"bird","e":"🦅","label":"Vogelpark & Falknerei","q":[["tourism","zoo"]],"need":[{"tag":"zoo","in":["birds","falconry"]},{"name":"vogel|falk|adler|oiseau|rapace|ptak|ptác|fugle|sokol"}],"place":"out"},
       {"id":"zoo","e":"🦒","label":"Zoo & Tierpark","q":[["tourism","zoo"]],"place":"out"}
     ]},
     {"id":"nature","e":"🌲","label":"Natur","on":false,"subs":[
-      {"id":"treetop","e":"🌳","label":"Baumwipfelpfad","q":[["tourism","attraction"]],"need":[{"name":"baumwipfel|baumkronen|skywalk|wipfelpfad"}],"place":"out"},
+      {"id":"treetop","e":"🌳","label":"Baumwipfelpfad","q":[["tourism","attraction"]],"need":[{"name":"baumwipfel|baumkronen|skywalk|wipfelpfad|boomkroon|kroonpad|cime des arbres|korun|koron drzew|trætop|treetop"}],"place":"out"},
       {"id":"tower","e":"🗼","label":"Aussichtsturm","q":[["tower:type","observation"]],"place":"out"},
       {"id":"view","e":"🏞️","label":"Aussichtspunkt","q":[["tourism","viewpoint"]],"named":true,"place":"out"},
       {"id":"fall","e":"💧","label":"Wasserfall","q":[["natural","waterfall"],["waterway","waterfall"]],"place":"out"},
       {"id":"heath","e":"🌾","label":"Heide & Moor","q":[["natural","heath"],["natural","wetland"]],"need":[{"tag":"natural","in":["heath"]},{"tag":"wetland","in":["bog","fen"]}],"named":true,"place":"out"},
-      {"id":"garden","e":"🌺","label":"Botanischer Garten","q":[["leisure","garden"]],"need":[{"tag":"garden:type","in":["botanical"]},{"name":"botanisch"}],"place":"out"}
+      {"id":"garden","e":"🌺","label":"Botanischer Garten","q":[["leisure","garden"]],"need":[{"tag":"garden:type","in":["botanical"]},{"name":"botani|hortus"}],"place":"out"}
     ]},
     {"id":"culture","e":"🏛️","label":"Kultur","on":false,"subs":[
-      {"id":"open","e":"🏘️","label":"Freilichtmuseum","q":[["tourism","museum"]],"need":[{"tag":"museum","in":["open_air"]},{"name":"freilicht"}],"place":"out"},
-      {"id":"tech","e":"🚂","label":"Technik & Verkehr","q":[["tourism","museum"]],"need":[{"tag":"museum","in":["technology","transport","railway","aviation","industry","science"]},{"name":"technik|eisenbahn|auto|luftfahrt|verkehr|motor|phaeno|science"}],"place":"in"},
+      {"id":"open","e":"🏘️","label":"Freilichtmuseum","q":[["tourism","museum"]],"need":[{"tag":"museum","in":["open_air"]},{"name":"freilicht|openlucht|écomusée|ecomusee|skansen|skanzen|frilands"}],"place":"out"},
+      {"id":"tech","e":"🚂","label":"Technik & Verkehr","q":[["tourism","museum"]],"need":[{"tag":"museum","in":["technology","transport","railway","aviation","industry","science"]},{"name":"technik|eisenbahn|auto|luftfahrt|verkehr|motor|phaeno|science|techni|spoorweg|chemin de fer|kolej|železni|aviation|luchtvaart"}],"place":"in"},
       {"id":"museum","e":"🏛️","label":"Museum","q":[["tourism","museum"]],"place":"in"},
       {"id":"castle","e":"🏰","label":"Burg & Schloss","q":[["historic","castle"]]},
       {"id":"abbey","e":"⛪","label":"Kloster","q":[["historic","monastery"],["amenity","monastery"]]}
@@ -57,7 +57,7 @@
     ]},
     {"id":"shopping","e":"🛍️","label":"Einkaufen","on":false,"subs":[
       {"id":"outlet","e":"🛍️","label":"Outlet-Center","q":[["shop","mall"],["shop","outlet"]],"need":[{"tag":"shop","in":["outlet"]},{"name":"outlet|village|fashion city"}],"place":"in"},
-      {"id":"factory","e":"🏭","label":"Fabrik- & Werksverkauf","q":[["shop","clothes"],["shop","shoes"],["shop","chocolate"],["shop","confectionery"],["shop","houseware"],["shop","outlet"]],"need":[{"name":"fabrikverkauf|werksverkauf|factory|outlet|lagerverkauf"}],"place":"in"},
+      {"id":"factory","e":"🏭","label":"Fabrik- & Werksverkauf","q":[["shop","clothes"],["shop","shoes"],["shop","chocolate"],["shop","confectionery"],["shop","houseware"],["shop","outlet"]],"need":[{"name":"fabrikverkauf|werksverkauf|factory|outlet|lagerverkauf|fabrieks|magasin d.usine|tovární|fabryczn"}],"place":"in"},
       {"id":"farm","e":"🥕","label":"Hofladen","q":[["shop","farm"]]}
     ]}
   ]

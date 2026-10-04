@@ -137,7 +137,7 @@ function suggest(q){
   suggestTimer = setTimeout(async () => {
     suggestCtl?.abort(); suggestCtl = new AbortController();
     try{
-      const r = await fetch(`https://photon.komoot.io/api/?limit=5&lang=de&bbox=5.5,47.2,15.5,55.1&q=${enc(q)}`, {signal: suggestCtl.signal});
+      const r = await fetch(`https://photon.komoot.io/api/?limit=5&lang=de&bbox=-5.5,41.3,24.5,58.0&q=${enc(q)}`, {signal: suggestCtl.signal});
       const j = await r.json();
       const labels = [...new Set(j.features.map(f => [f.properties.name, f.properties.city || f.properties.county, f.properties.state]
         .filter((x, i, a) => x && a.indexOf(x) === i).join(', ')))];
@@ -363,7 +363,10 @@ async function wikiInfo(t){
       try{
         const j = await getJSON(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${t.wikidata}&props=sitelinks|claims&sitefilter=dewiki|enwiki&format=json&origin=*`, 'Wikidata');
         const e = j.entities?.[t.wikidata];
-        if(!title){ const sl = e?.sitelinks?.dewiki || e?.sitelinks?.enwiki; if(sl){ title = sl.title; lang = sl.site === 'dewiki' ? 'de' : 'en'; } }
+        // Deutsche Beschreibung bevorzugen, auch wenn der Ort im Ausland liegt
+        const de = e?.sitelinks?.dewiki, en = e?.sitelinks?.enwiki;
+        if(de){ title = de.title; lang = 'de'; }
+        else if(!title && en){ title = en.title; lang = 'en'; }
         const file = e?.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
         if(file) img = `https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=760`;
       }catch(e){}
@@ -688,7 +691,7 @@ document.addEventListener('click', e => {
     state.mains = new Set(state.MAIN.filter(m => m.on).map(m => m.id));
   }catch(e){ setStatus('App-Dateien konnten nicht geladen werden. Läuft die Seite über eine Webadresse (nicht als lokale Datei)?', true); return; }
   $('databadge').textContent = state.meta
-    ? `${state.meta.count.toLocaleString('de-DE')} Ziele in Deutschland, Stand ${new Date(state.meta.built).toLocaleDateString('de-DE')}`
+    ? `${state.meta.count.toLocaleString('de-DE')} Ziele in Deutschland und den Nachbarländern, Stand ${new Date(state.meta.built).toLocaleDateString('de-DE')}`
     : 'Noch keine Daten gebaut';
   const fromLink = readHash();
   $('radius').value = state.radius/1000; $('kw').value = state.kw; syncSliders();
