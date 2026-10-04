@@ -30,7 +30,7 @@ def load_subs(path):
                 if 'name' in c:
                     c['re'] = re.compile(c['name'], re.I)
                 need.append(c)
-            subs.append({'id': s['id'], 'q': [tuple(x) for x in s['q']], 'need': need})
+            subs.append({'id': s['id'], 'q': [tuple(x) for x in s['q']], 'need': need, 'named': s.get('named', False)})
     return subs
 
 
@@ -52,6 +52,8 @@ def classify(subs, tags):
              ('has' in c and tags.get(c['has']) not in (None, 'no')) or
              ('re' in c and c['re'].search(name)))
             for c in s['need']):
+            continue
+        if s['named'] and not name:
             continue
         return s['id']
     return None
