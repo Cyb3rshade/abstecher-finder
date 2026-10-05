@@ -54,11 +54,12 @@ const ICONS = {
   wave:'<path d="M3 15c3 0 3-2 6-2s3 2 6 2 3-2 6-2M3 19c3 0 3-2 6-2s3 2 6 2 3-2 6-2M12 3v7M9 6l3-3 3 3"/>',
   paw:'<circle cx="7" cy="10" r="1.8"/><circle cx="17" cy="10" r="1.8"/><circle cx="10" cy="6" r="1.8"/><circle cx="14" cy="6" r="1.8"/><path d="M8 17c0-3 2-5 4-5s4 2 4 5c0 2-2 2.5-4 2.5s-4-.5-4-2.5z"/>',
   tree:'<path d="M12 3l6 10H6z"/><path d="M12 13v8"/>', museum:'<path d="M3 20h18M5 17v-7M9.5 17v-7M14.5 17v-7M19 17v-7M3 10l9-6 9 6z"/>',
-  cup:'<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 11h2a2 2 0 0 1 0 4h-2M8 3v3M12 3v3"/>', bag:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+  cup:'<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 11h2a2 2 0 0 1 0 4h-2M8 3v3M12 3v3"/>',
+  utensils:'<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1.5-3 4-3 7h3v11"/>', menu:'<path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/>', phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>', bag:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
   pin:'<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
 };
 const icon = (n, s=20, w=1.9) => `<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ICONS.pin}</svg>`;
-const MAIN_ICON = {action:'wheel', fun:'dice', wellness:'spa', water:'wave', animals:'paw', nature:'tree', culture:'museum', food:'cup', shopping:'bag'};
+const MAIN_ICON = {action:'wheel', fun:'dice', wellness:'spa', water:'wave', animals:'paw', nature:'tree', culture:'museum', food:'utensils', shopping:'bag'};
 const catIcon = m => MAIN_ICON[m?.id] || 'pin';
 const tileHtml = (m, size=42, is=22) => `<span class="tile" style="width:${size}px;height:${size}px;background:var(--c-${m.id},#777);color:var(--o-${m.id},#fff)">${icon(catIcon(m), is, 1.8)}</span>`;
 function paintIcons(root=document){ root.querySelectorAll('[data-icon]').forEach(el => { if(!el.dataset.painted){ el.innerHTML = icon(el.dataset.icon); el.dataset.painted = 1; } }); }
@@ -84,6 +85,7 @@ const EXTRAS = [
   {id:'dog',   label:'Hundefreundlich',    test:r=>['yes','leashed','outside'].includes(r.t.dog)},
   {id:'wheel', label:'Rollstuhlgerecht',   test:r=>['yes','limited'].includes(r.t.wheelchair)},
   {id:'free',  label:'Kostenlos',          test:r=>r.t.fee==='no'},
+  {id:'veg',   label:'Vegetarisch oder vegan', test:r=>['yes','only'].includes(r.t['diet:vegetarian']) || ['yes','only'].includes(r.t['diet:vegan']) || /vegetarian|vegan/.test(r.t.cuisine || '')},
   {id:'pic',   label:'Mit Bild und Infos', test:r=>!!(r.t.wikipedia || r.t.wikidata)},
 ];
 const STAY = {tpark:300, zoo:180, wild:150, pet:60, bird:120, wpark:180, therme:180, lake:120, ski:120, golf:60, foot:90, bowl:90, escape:75,
@@ -450,6 +452,15 @@ $('filterBtn').addEventListener('click', () => openSheet('filterSheet'));
 $('settingsBtn').addEventListener('click', () => openSheet('settingsSheet'));
 
 // ===================== Detail =====================
+const CUISINE = {italian:'Italienisch', pizza:'Pizza', german:'Deutsch', regional:'Regional', bavarian:'Bayerisch', austrian:'Österreichisch', swiss:'Schweizerisch',
+  dutch:'Niederländisch', danish:'Dänisch', polish:'Polnisch', czech:'Tschechisch', belgian:'Belgisch', greek:'Griechisch', mediterranean:'Mediterran', balkan:'Balkan',
+  croatian:'Kroatisch', asian:'Asiatisch', chinese:'Chinesisch', thai:'Thailändisch', vietnamese:'Vietnamesisch', japanese:'Japanisch', sushi:'Sushi', korean:'Koreanisch',
+  ramen:'Ramen', indian:'Indisch', pakistani:'Pakistanisch', nepalese:'Nepalesisch', sri_lankan:'Sri-lankisch', turkish:'Türkisch', kebab:'Kebab', lebanese:'Libanesisch',
+  arab:'Arabisch', persian:'Persisch', syrian:'Syrisch', oriental:'Orientalisch', burger:'Burger', american:'Amerikanisch', steak_house:'Steakhaus', barbecue:'Barbecue',
+  grill:'Grill', fish:'Fisch', seafood:'Meeresfrüchte', spanish:'Spanisch', tapas:'Tapas', mexican:'Mexikanisch', 'tex-mex':'Tex-Mex', latin_american:'Lateinamerikanisch',
+  argentinian:'Argentinisch', peruvian:'Peruanisch', french:'Französisch', vegetarian:'Vegetarisch', vegan:'Vegan', international:'International', coffee_shop:'Café',
+  cake:'Kuchen', ice_cream:'Eis', breakfast:'Frühstück', local:'Regional', fine_dining:'Gehobene Küche'};
+const cuisineText = c => (c || '').split(';').map(x => x.trim()).filter(Boolean).map(x => CUISINE[x] || x.replace(/_/g, ' ').replace(/^./, m => m.toUpperCase())).join(', ');
 const WMO = c => c === 0 ? ['sunny','Sonnig'] : c <= 2 ? ['sunny','Heiter'] : c === 3 ? ['cloud','Bewölkt'] : c <= 48 ? ['fog','Nebel'] : c <= 67 ? ['rain','Regen']
   : c <= 77 ? ['snow','Schnee'] : c <= 82 ? ['rain','Schauer'] : c <= 86 ? ['snow','Schneeschauer'] : ['storm','Gewitter'];
 const infoCache = new Map();
@@ -495,7 +506,14 @@ async function openDetail(id){
   document.querySelectorAll('.hit.active').forEach(h => h.classList.remove('active'));
   document.querySelector(`[data-open="${CSS.escape(id)}"]`)?.closest('.hit')?.classList.add('active');
   const t = r.t || {}, web = t.website || t['contact:website'];
+  const isFood = r.s.id.startsWith('r_') || ['cafe', 'beer'].includes(r.s.id);
+  const menu = t['website:menu'] || t['menu:url'], phone = t.phone || t['contact:phone'];
+  const menuSearch = `https://www.google.com/search?q=${enc([r.name, t['addr:city'], 'Speisekarte'].filter(Boolean).join(' '))}`;
+  const foodRow = isFood && r.name ? `<div class="btn-row" style="margin-top:0">
+      <a class="secondary-btn" href="${esc(menu || menuSearch)}" target="_blank" rel="noopener">${icon(menu ? 'menu' : 'search', 18)}${menu ? 'Speisekarte' : 'Speisekarte suchen'}</a>
+      ${phone ? `<a class="secondary-btn" href="tel:${esc(phone.split(';')[0].replace(/[^+\d]/g, ''))}">${icon('phone', 18)}Anrufen</a>` : ''}</div>` : '';
   const facts = [
+    t.cuisine && ['utensils', esc(cuisineText(t.cuisine))],
     t.opening_hours && ['clock', esc(t.opening_hours)],
     t.fee && ['euro', t.fee === 'no' ? 'Eintritt frei' : t.fee === 'yes' ? 'Eintritt kostenpflichtig' : esc(t.fee)],
     t.wheelchair && ['wheelchair', {yes: 'Rollstuhlgerecht', limited: 'Eingeschränkt rollstuhlgerecht', no: 'Nicht rollstuhlgerecht'}[t.wheelchair] || esc(t.wheelchair)],
@@ -509,6 +527,7 @@ async function openDetail(id){
         <h2 id="detailTitle">${esc(r.name || r.s.label)}</h2>
         <p class="d-meta">${r.km != null ? `Bei km ${fmtKm(r.km)}, ca. ${r.mins} min Umweg` : 'Nicht auf der aktuellen Route'}${r.indoor ? ', drinnen' : ''}</p></div>
       <div class="d-actions" id="dActions">${detailActions(r)}</div>
+      ${foodRow}
       <div class="d-desc" id="dDesc"${t.wikipedia || t.wikidata ? '' : ' hidden'}><div class="shimmer" style="height:60px"></div></div>
       <div><div class="group-label" style="margin-top:0">Wetter vor Ort</div><div class="wx" id="dWx">${'<div class="shimmer" style="height:84px"></div>'.repeat(3)}</div></div>
       ${facts.length ? `<dl class="facts">${facts.map(([i, v]) => `<dt>${icon(i)}</dt><dd>${v}</dd>`).join('')}</dl>` : ''}
@@ -534,7 +553,7 @@ function toggleFav(id){
   store.set('af-favs', state.favs); render();
   if(state.activeId === id && $('dActions')) $('dActions').innerHTML = detailActions(findEntry(id));
 }
-const stayOf = r => state.plan.stay[r.id] ?? STAY[r.s.id] ?? 60;
+const stayOf = r => state.plan.stay[r.id] ?? STAY[r.s.id] ?? (r.s.id.startsWith('r_') ? 75 : 60);
 const tourItems = () => state.tour.map(id => state.byId.get(id)).filter(Boolean).sort((a, b) => a.km - b.km);
 const savePlan = () => store.set('af-plan', state.plan);
 function tourWaypoints(){
