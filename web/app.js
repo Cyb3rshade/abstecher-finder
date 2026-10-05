@@ -56,6 +56,7 @@ const ICONS = {
   tree:'<path d="M12 3l6 10H6z"/><path d="M12 13v8"/>', museum:'<path d="M3 20h18M5 17v-7M9.5 17v-7M14.5 17v-7M19 17v-7M3 10l9-6 9 6z"/>',
   cup:'<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5z"/><path d="M16 11h2a2 2 0 0 1 0 4h-2M8 3v3M12 3v3"/>',
   utensils:'<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1.5-3 4-3 7h3v11"/>', menu:'<path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/>', phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>', bag:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
+  back:'<path d="M15 5l-7 7 7 7"/>', chev:'<path d="M9 5l7 7-7 7"/>', install:'<path d="M12 3v12M7 10l5 5 5-5"/><rect x="4" y="17" width="16" height="4" rx="1"/>',
   pin:'<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
 };
 // Alle Symbole einmal als <symbol> ins Dokument, danach nur noch per <use> referenzieren (spart tausende DOM-Knoten)
@@ -409,18 +410,50 @@ const PoiLayer = L.Layer.extend({
     const m = this._map, c = this._c, ctx = c.getContext('2d'), dpr = window.devicePixelRatio || 1, size = m.getSize();
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
     const z = m.getZoom(), base = z <= 7 ? 4 : z <= 9 ? 5.5 : 7, ring = cssVar('--pinring'), a2 = cssVar('--a2'), pts = [];
-    const tourSet = new Set(state.tour);
-    const order = this._items.slice().sort((a, b) => (tourSet.has(a.id) - tourSet.has(b.id)) || ((a.id === state.activeId) - (b.id === state.activeId)));
-    for(const r of order){
+    const tourSet = new Set(state.tour), surf = cssVar('--surf'), text = cssVar('--text'), a1 = cssVar('--a1');
+    const cluster = z < 13, cell = 62, groups = new Map(), special = [];
+    for(const r of this._items){
       const p = m.latLngToContainerPoint([r.lat, r.lon]);
-      if(p.x < -20 || p.y < -20 || p.x > size.x + 20 || p.y > size.y + 20) continue;
-      const inTour = tourSet.has(r.id), active = r.id === state.activeId, rad = active ? 11 : inTour ? base + 2.5 : base;
-      ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
-      ctx.fillStyle = cssVar('--c-' + r.m.id) || '#777'; ctx.fill();
-      ctx.lineWidth = inTour ? 4 : z <= 7 ? 1.5 : 2.5; ctx.strokeStyle = inTour ? a2 : ring; ctx.stroke();
-      if(active){ ctx.beginPath(); ctx.arc(p.x, p.y, rad + 5, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = cssVar('--a1'); ctx.stroke(); }
-      pts.push([p.x, p.y, rad, r]);
+      if(p.x < -40 || p.y < -40 || p.x > size.x + 40 || p.y > size.y + 40) continue;
+      if(tourSet.has(r.id) || r.id === state.activeId || !cluster){ special.push([p, r]); continue; }
+      const k = Math.floor(p.x / cell) + ':' + Math.floor(p.y / cell);
+      (groups.get(k) || groups.set(k, []).get(k)).push([p, r]);
     }
+    const pin = (p, r) => {
+      const inTour = tourSet.has(r.id), active = r.id === state.activeId, rad = active ? 11 : inTour ? base + 2.5 : base;
+      ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, Math.PI * 2); ctx.fillStyle = cssVar('--c-' + r.m.id) || '#777'; ctx.fill();
+      ctx.lineWidth = inTour ? 4 : z <= 7 ? 1.5 : 2.5; ctx.strokeStyle = inTour ? a2 : ring; ctx.stroke();
+      if(active){ ctx.beginPath(); ctx.arc(p.x, p.y, rad + 5, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = a1; ctx.stroke(); }
+      pts.push([p.x, p.y, rad, r]);
+    };
+    // Benachbarte Bündel, die sich überlappen würden, zusammenlegen
+    const radOf = n => n === 1 ? base + 3 : Math.min(27, 10 + Math.log2(n) * 3.2);
+    let cl = [...groups.values()].map(g => ({g, x: g.reduce((s, [p]) => s + p.x, 0) / g.length, y: g.reduce((s, [p]) => s + p.y, 0) / g.length}));
+    cl.sort((a, b) => b.g.length - a.g.length);
+    for(let i = 0; i < cl.length; i++){ const A = cl[i]; if(!A) continue;
+      for(let j = i + 1; j < cl.length; j++){ const B = cl[j]; if(!B) continue;
+        const lim = radOf(A.g.length) + radOf(B.g.length) + 2;
+        if((A.x - B.x) ** 2 + (A.y - B.y) ** 2 < lim * lim){
+          const n = A.g.length + B.g.length; A.x = (A.x * A.g.length + B.x * B.g.length) / n; A.y = (A.y * A.g.length + B.y * B.g.length) / n; A.g = A.g.concat(B.g); cl[j] = null; j = i; } } }
+    cl = cl.filter(Boolean);
+    // kleine Bündel zuerst, große obendrauf
+    for(const {g, x: cx, y: cy} of cl.sort((a, b) => a.g.length - b.g.length)){
+      if(g.length === 1){ pin(g[0][0], g[0][1]); continue; }
+      // Bündel: Größe wächst mit der Anzahl, Ring zeigt die Kategorien anteilig in ihren Farben
+      const x = cx, y = cy, n = g.length, rad = radOf(n), counts = {};
+      g.forEach(([, r]) => counts[r.m.id] = (counts[r.m.id] || 0) + 1);
+      ctx.beginPath(); ctx.arc(x, y, rad + 2, 0, Math.PI * 2); ctx.fillStyle = ring; ctx.fill();
+      let ang = -Math.PI / 2;
+      for(const [cat, c] of Object.entries(counts).sort((a, b) => b[1] - a[1])){
+        const sweep = c / n * Math.PI * 2;
+        ctx.beginPath(); ctx.arc(x, y, rad - 2.5, ang, ang + sweep); ctx.lineWidth = 5; ctx.strokeStyle = cssVar('--c-' + cat) || '#777'; ctx.stroke(); ang += sweep;
+      }
+      ctx.beginPath(); ctx.arc(x, y, rad - 5, 0, Math.PI * 2); ctx.fillStyle = surf; ctx.fill();
+      ctx.fillStyle = text; ctx.font = `700 ${Math.round(Math.min(15, 9 + rad / 4))}px Archivo, system-ui, sans-serif`; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText(n > 999 ? (n / 1000).toLocaleString('de-DE', {maximumFractionDigits: 1}) + 'k' : String(n), x, y + .5);
+      pts.push([x, y, rad, {cluster: true, members: g.map(([, r]) => r), n}]);
+    }
+    special.sort((a, b) => (tourSet.has(a[1].id) - tourSet.has(b[1].id)) || ((a[1].id === state.activeId) - (b[1].id === state.activeId))).forEach(([p, r]) => pin(p, r));
     this._pts = pts;
   },
   _nearest(cp){
@@ -428,11 +461,19 @@ const PoiLayer = L.Layer.extend({
     for(const [x, y, rad, r] of this._pts){ const d = (x - cp.x) ** 2 + (y - cp.y) ** 2, lim = (rad + 8) ** 2; if(d <= lim && d < bd){ bd = d; best = r; } }
     return best;
   },
-  _click(e){ const r = this._nearest(e.containerPoint); if(r) openDetail(r.id); },
+  _click(e){
+    const r = this._nearest(e.containerPoint); if(!r) return;
+    if(!r.cluster){ openDetail(r.id); return; }
+    // Bündel antippen: hineinzoomen, bis es sich auflöst
+    const b = L.latLngBounds(r.members.map(x => [x.lat, x.lon]));
+    if(b.getNorthEast().equals(b.getSouthWest())) this._map.setView(b.getCenter(), Math.min(18, this._map.getZoom() + 3));
+    else this._map.fitBounds(b, {padding: [70, 70], maxZoom: Math.min(18, this._map.getZoom() + 4)});
+  },
   _hover(e){
     const r = this._nearest(e.containerPoint), el = this._map.getContainer();
     el.style.cursor = r ? 'pointer' : '';
-    if(r){ this._tip.setLatLng([r.lat, r.lon]).setContent(esc(r.name || r.s.label)); if(!this._map.hasLayer(this._tip)) this._tip.addTo(this._map); }
+    if(r){ const ll = r.cluster ? this._map.containerPointToLatLng(e.containerPoint) : [r.lat, r.lon];
+      this._tip.setLatLng(ll).setContent(r.cluster ? `${r.n} Sidequests, zum Vergrößern tippen` : esc(r.name || r.s.label)); if(!this._map.hasLayer(this._tip)) this._tip.addTo(this._map); }
     else if(this._map.hasLayer(this._tip)) this._map.removeLayer(this._tip);
   },
 });
@@ -456,7 +497,7 @@ function favEntries(){
 }
 function renderList(items){
   const R = state.route;
-  if(!R) return `<div class="empty"><p><b style="color:var(--text)">Sidequest findet Ausflugsziele entlang deiner Route.</b><br>Gib Start und Ziel ein, dann siehst du Freizeitparks, Spaßbäder, Zoos, Burgen und mehr, die unterwegs nur einen kleinen Umweg entfernt sind.</p><button type="button" class="primary-btn" data-open-route>Route planen</button></div>`;
+  if(!R) return `<div class="empty"><p><b style="color:var(--text)">Sidequest findet Ausflugsziele entlang deiner Route.</b><br>Gib Start und Ziel ein, dann siehst du Freizeitparks, Spaßbäder, Zoos, Burgen und mehr, die unterwegs nur einen kleinen Umweg entfernt sind.</p><button type="button" class="primary-btn" data-open-route>Route planen</button>${isInstalled() ? '' : `<button type="button" class="text-btn" data-open-install style="margin-top:6px;padding-left:0">${icon('install', 16, 2)} Sidequest als App installieren</button>`}</div>`;
   if(state.favOnly){
     const favs = favEntries().sort((a, b) => (a.km ?? 1e12) - (b.km ?? 1e12));
     const tips = [...state.tips].map(id => state.byId.get(id)).filter(r => r && !state.favs[r.id]);
@@ -562,6 +603,7 @@ function openSheet(id){
   if(id === 'filterSheet') renderFilter();
   if(id === 'tourSheet') renderTour();
   if(id === 'settingsSheet') renderSettings();
+  if(id === 'installSheet') renderInstall();
   if(id === 'routeSheet'){ renderStops(); $('radius').value = state.radius/1000; $('radiusOut').textContent = state.radius/1000 + ' km'; }
   paintIcons(s);
   const scrim = $('scrim');
@@ -600,23 +642,63 @@ function wikiInfo(t){
   const key = t.wikidata || t.wikipedia; if(!key) return Promise.resolve(null);
   if(infoCache.has(key)) return infoCache.get(key);
   const p = (async () => {
-    let lang = 'de', title = null, img = null;
+    let lang = 'de', title = null, img = null, file = null, category = null;
     if(t.wikipedia){ const i = t.wikipedia.indexOf(':'); if(i > 0 && i < 4){ lang = t.wikipedia.slice(0, i); title = t.wikipedia.slice(i+1); } else title = t.wikipedia; }
     if(t.wikidata && /^Q\d+$/.test(t.wikidata)){
       try{
         const e = (await getJSON(`https://www.wikidata.org/w/api.php?action=wbgetentities&ids=${t.wikidata}&props=sitelinks|claims&sitefilter=dewiki|enwiki&format=json&origin=*`, 'Wikidata')).entities?.[t.wikidata];
         const de = e?.sitelinks?.dewiki, en = e?.sitelinks?.enwiki;
         if(de){ title = de.title; lang = 'de'; } else if(!title && en){ title = en.title; lang = 'en'; }
-        const file = e?.claims?.P18?.[0]?.mainsnak?.datavalue?.value;
-        if(file) img = `https://commons.wikimedia.org/wiki/Special:FilePath/${enc(file)}?width=760`;
+        file = e?.claims?.P18?.[0]?.mainsnak?.datavalue?.value || null;
+        category = e?.claims?.P373?.[0]?.mainsnak?.datavalue?.value || null;
       }catch(e){}
     }
     let extract = null, url = null;
     if(title){ try{ const s = await getJSON(`https://${lang}.wikipedia.org/api/rest_v1/page/summary/${enc(title.replace(/ /g, '_'))}`, 'Wikipedia');
       extract = s.extract || null; url = s.content_urls?.desktop?.page || null; if(!img && s.thumbnail?.source) img = s.thumbnail.source.replace(/\/\d+px-/, '/760px-'); }catch(e){} }
-    return {img, extract, url};
+    return {img, extract, url, file, category};
   })();
   infoCache.set(key, p); return p;
+}
+// Bilder: Hauptbild aus Wikidata, Bildersammlung (Commons-Kategorie) und geotaggte Fotos im Umkreis. Kein API-Schlüssel nötig.
+const galleryCache = new Map();
+const COMMONS = 'https://commons.wikimedia.org/w/api.php?action=query&format=json&origin=*&prop=imageinfo&iiprop=url|extmetadata&iiurlwidth=900&iiextmetadatafilter=Artist|LicenseShortName&';
+const SKIP_FILE = /map|karte|plan|logo|wappen|coat.of.arms|diagram|grundriss|schild|sign\b|flag|fahne|icon|svg$|\.tif|\.pdf/i;
+const stripHtml = h => { const d = document.createElement('div'); d.innerHTML = h || ''; return (d.textContent || '').trim().replace(/\s+/g, ' ').slice(0, 80); };
+function galleryRadius(r){
+  if(['see', 'heath', 'tpark', 'zoo', 'wild', 'open', 'garden'].includes(r.s.id)) return 600;
+  return r.id[0] === 'n' ? 150 : 350;   // Punkte eng, Flächen weiter
+}
+function gallery(r, info){
+  if(galleryCache.has(r.id)) return galleryCache.get(r.id);
+  const p = (async () => {
+    const files = new Map();
+    const take = pages => Object.values(pages || {}).sort((a, b) => (a.index ?? 0) - (b.index ?? 0)).forEach(pg => {
+      const ii = pg.imageinfo?.[0]; if(!ii?.thumburl || SKIP_FILE.test(pg.title) || files.has(pg.title)) return;
+      files.set(pg.title, {src: ii.thumburl, page: ii.descriptionurl, artist: stripHtml(ii.extmetadata?.Artist?.value), license: ii.extmetadata?.LicenseShortName?.value || ''});
+    });
+    const ask = async q => { try{ take((await getJSON(COMMONS + q, 'Wikimedia Commons', 12000)).query?.pages); }catch(e){} };
+    if(info?.file) await ask(`titles=${enc('File:' + info.file)}`);
+    if(info?.category) await ask(`generator=categorymembers&gcmtitle=${enc('Category:' + info.category)}&gcmtype=file&gcmlimit=12`);
+    if(files.size < 8) await ask(`generator=geosearch&ggscoord=${r.lat.toFixed(5)}|${r.lon.toFixed(5)}&ggsradius=${galleryRadius(r)}&ggsnamespace=6&ggslimit=12`);
+    if(!files.size && info?.img) files.set('wiki', {src: info.img, page: info.url, artist: '', license: ''});
+    return [...files.values()].slice(0, 10);
+  })();
+  galleryCache.set(r.id, p); return p;
+}
+function renderGallery(imgs){
+  const hero = $('dHero'); if(!hero || !imgs.length) return;
+  hero.innerHTML = `<div class="gal" id="gal">${imgs.map((im, i) => `<figure><img src="${esc(im.src)}" alt="" loading="${i ? 'lazy' : 'eager'}" decoding="async"></figure>`).join('')}</div>
+    ${imgs.length > 1 ? `<div class="gal-dots" aria-hidden="true">${imgs.map((_, i) => `<span${i ? '' : ' class="on"'}></span>`).join('')}</div>
+      <button type="button" class="gal-nav prev" aria-label="Vorheriges Bild">${icon('back', 18, 2.4)}</button><button type="button" class="gal-nav next" aria-label="Nächstes Bild">${icon('chev', 18, 2.4)}</button>` : ''}
+    <a class="credit" id="galCredit" target="_blank" rel="noopener"></a>`;
+  const gal = $('gal'), credit = $('galCredit');
+  gal.querySelectorAll('img').forEach(img => img.addEventListener('load', () => img.classList.add('loaded'), {once: true}));
+  const show = i => { const im = imgs[i]; credit.href = im.page || '#'; credit.textContent = im.artist || im.license ? `Foto: ${[im.artist, im.license].filter(Boolean).join(', ')}` : 'Foto: Wikimedia Commons';
+    hero.querySelectorAll('.gal-dots span').forEach((d, k) => d.classList.toggle('on', k === i)); };
+  show(0);
+  gal.addEventListener('scroll', () => show(Math.round(gal.scrollLeft / gal.clientWidth)), {passive: true});
+  hero.querySelectorAll('.gal-nav').forEach(b => b.addEventListener('click', () => gal.scrollBy({left: (b.classList.contains('next') ? 1 : -1) * gal.clientWidth, behavior: reduceMotion ? 'auto' : 'smooth'})));
 }
 async function weather(lat, lon){
   const j = await getJSON(`https://api.open-meteo.com/v1/forecast?latitude=${lat.toFixed(3)}&longitude=${lon.toFixed(3)}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&timezone=auto&forecast_days=3`, 'Wetter', 10000);
@@ -675,7 +757,7 @@ async function openDetail(id){
       return `<div>${icon(ic, 24, 1.6)}<b>${Math.round(d.max)}° / ${Math.round(d.min)}°</b>${['Heute', 'Morgen', 'Übermorgen'][i]}<span>${txt}, ${d.rain ?? 0} % Regen</span></div>`; }).join('');
   }).catch(() => { if(seq === detailSeq) $('dWx').innerHTML = '<p class="note">Wetter gerade nicht verfügbar.</p>'; });
   const info = await wikiInfo(t); if(seq !== detailSeq) return;
-  if(info?.img){ const img = new Image(); img.alt = ''; img.onload = () => img.classList.add('loaded'); img.src = info.img; $('dHero').append(img); $('dHero').insertAdjacentHTML('beforeend', '<span class="credit">Bild: Wikimedia Commons</span>'); }
+  gallery(r, info).then(imgs => { if(seq === detailSeq) renderGallery(imgs); });
   const desc = $('dDesc');
   if(info?.extract) desc.innerHTML = `<p>${esc(info.extract)}</p>${info.url ? `<p style="margin-top:8px"><a class="text-btn" style="padding:0;min-height:0" href="${esc(info.url)}" target="_blank" rel="noopener">Weiterlesen auf Wikipedia</a></p>` : ''}`;
   else desc.hidden = true;
@@ -776,11 +858,56 @@ ${T.wps.map(w => `<rtept lat="${w.p[0]}" lon="${w.p[1]}"><name>${x(w.label)}</na
   document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 2000); toast('GPX-Datei gespeichert');
 }
 
+// ===================== Als App installieren =====================
+const UA = navigator.userAgent;
+const PLATFORM = /iPhone|iPad|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1) ? 'ios'
+  : /Android/.test(UA) ? 'android' : /Windows/.test(UA) ? 'windows' : /Macintosh/.test(UA) ? 'mac' : 'other';
+const BROWSER = /Edg\//.test(UA) ? 'edge' : /SamsungBrowser/.test(UA) ? 'samsung' : /FxiOS|Firefox/.test(UA) ? 'firefox' : /CriOS|Chrome/.test(UA) ? 'chrome' : /Safari/.test(UA) ? 'safari' : 'other';
+const isInstalled = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+let installPrompt = null;
+addEventListener('beforeinstallprompt', e => { e.preventDefault(); installPrompt = e; if(state.sheet === 'installSheet') renderInstall(); });
+addEventListener('appinstalled', () => { installPrompt = null; toast('Sidequest ist installiert'); closeSheet(); render(); });
+function installSteps(){
+  const P = PLATFORM, B = BROWSER;
+  if(P === 'ios'){
+    if(B === 'firefox') return {name: 'iPhone und iPad', steps: ['Öffne diese Seite in Safari. Firefox kann auf dem iPhone keine Web-Apps installieren.', 'Tippe unten auf das Teilen-Symbol (Quadrat mit Pfeil nach oben).', 'Wähle „Zum Home-Bildschirm“ und tippe auf „Hinzufügen“.']};
+    return {name: 'iPhone und iPad', steps: [B === 'safari' ? 'Tippe unten in der Leiste auf das Teilen-Symbol (Quadrat mit Pfeil nach oben).' : 'Tippe oben rechts neben der Adresszeile auf das Teilen-Symbol (Quadrat mit Pfeil nach oben).',
+      'Scrolle nach unten und wähle „Zum Home-Bildschirm“. Fehlt der Eintrag: ganz unten „Aktionen bearbeiten“ und ihn hinzufügen.', 'Tippe oben rechts auf „Hinzufügen“. Sidequest liegt jetzt als App auf deinem Home-Bildschirm.']};
+  }
+  if(P === 'android'){
+    if(B === 'samsung') return {name: 'Android', steps: ['Tippe unten auf das Menü (drei Striche).', 'Wähle „Seite hinzufügen zu“ und dann „Startbildschirm“.', 'Bestätige mit „Hinzufügen“.']};
+    if(B === 'firefox') return {name: 'Android', steps: ['Tippe auf das Menü (drei Punkte).', 'Wähle „Installieren“ bzw. „Zum Startbildschirm hinzufügen“.', 'Bestätige mit „Hinzufügen“.']};
+    return {name: 'Android', steps: ['Tippe oben rechts auf das Menü (drei Punkte).', 'Wähle „App installieren“ oder „Zum Startbildschirm hinzufügen“.', 'Bestätige mit „Installieren“. Sidequest erscheint bei deinen Apps.']};
+  }
+  if(P === 'windows' || P === 'mac'){
+    const os = P === 'windows' ? 'Windows' : 'Mac';
+    if(P === 'mac' && B === 'safari') return {name: os, steps: ['Klicke oben in der Menüleiste auf „Ablage“.', 'Wähle „Zum Dock hinzufügen“ (ab macOS Sonoma).', 'Bestätige mit „Hinzufügen“. Sidequest liegt jetzt im Dock.']};
+    if(B === 'firefox') return {name: os, steps: ['Firefox kann Web-Apps nicht als eigene App installieren.', 'Öffne diese Seite in Microsoft Edge oder Google Chrome.', 'Dort erscheint rechts in der Adressleiste ein Installieren-Symbol.']};
+    if(B === 'edge') return {name: os, steps: ['Klicke rechts in der Adressleiste auf das Symbol „App verfügbar“, oder öffne das Menü (drei Punkte).', 'Wähle „Apps“ und dann „Diese Website als App installieren“.', 'Bestätige mit „Installieren“. Sidequest startet ab jetzt wie ein eigenes Programm.']};
+    return {name: os, steps: ['Klicke rechts in der Adressleiste auf das Installieren-Symbol (Bildschirm mit Pfeil), oder öffne das Menü (drei Punkte).', 'Wähle „Sidequest installieren“ bzw. „Streamen, speichern und teilen“ und dann „Seite als App installieren“.', `Bestätige mit „Installieren“. Sidequest findest du danach ${P === 'windows' ? 'im Startmenü' : 'im Launchpad'}.`]};
+  }
+  return {name: 'deinem Gerät', steps: ['Öffne das Menü deines Browsers.', 'Suche nach „App installieren“ oder „Zum Startbildschirm hinzufügen“.', 'Bestätige die Installation.']};
+}
+function renderInstall(){
+  const body = $('installBody');
+  if(isInstalled()){ body.innerHTML = '<p class="empty">Sidequest läuft bereits als App. 🎉</p>'; return; }
+  const {name, steps} = installSteps();
+  body.innerHTML = `<p class="note" style="margin-top:0">Als App startet Sidequest im Vollbild ohne Browserleisten, direkt von deinem ${PLATFORM === 'windows' || PLATFORM === 'mac' ? 'Desktop' : 'Home-Bildschirm'}.</p>
+    ${installPrompt ? `<button type="button" class="primary-btn" id="installNow" style="margin:16px 0 8px">${icon('install', 20, 2)}Jetzt installieren</button><p class="note">Oder von Hand:</p>` : ''}
+    <div class="group-label">So geht's auf ${esc(name)}</div>
+    <ol class="steps">${steps.map(t => `<li>${esc(t)}</li>`).join('')}</ol>
+    <p class="note">Merkliste und Einstellungen der App sind getrennt von denen im Browser.</p>`;
+}
+$('installBody').addEventListener('click', async e => {
+  if(e.target.closest('#installNow') && installPrompt){ installPrompt.prompt(); const c = await installPrompt.userChoice; if(c.outcome !== 'accepted') toast('Installation abgebrochen'); installPrompt = null; renderInstall(); }
+});
+
 // ===================== Einstellungen =====================
 function renderSettings(){
   const sw = (id, on, label) => `<button type="button" class="switch" role="switch" id="${id}" aria-checked="${on}" aria-label="${label}"></button>`;
   const meta = state.meta ? `${state.meta.count.toLocaleString('de-DE')} Ziele, Stand ${new Date(state.meta.built).toLocaleDateString('de-DE')}` : 'Noch keine Daten gebaut';
   $('settingsBody').innerHTML = `
+    ${isInstalled() ? '' : `<button type="button" class="install-card" data-open-install>${icon('install', 22, 2)}<span><b>Als App installieren</b><small>Anleitung für ${esc(installSteps().name)}</small></span>${icon('chev', 18, 2)}</button>`}
     <div class="group-label">Darstellung</div>
     <div class="seg big" id="themeSeg">${[['light', 'Hell', 'sun'], ['dark', 'Dunkel', 'moon'], ['auto', 'Automatisch', 'auto']].map(([k, l, i]) =>
       `<button type="button" data-theme-set="${k}" aria-pressed="${settings.theme === k}">${icon(i, 22, 1.8)}${l}</button>`).join('')}</div>
@@ -865,6 +992,7 @@ document.addEventListener('click', e => {
   if(e.target.closest('[data-open-tour]')){ openSheet('tourSheet'); return; }
   if(e.target.closest('[data-open-route]')){ openSheet('routeSheet'); return; }
   if(e.target.closest('[data-open-filter]')){ openSheet('filterSheet'); return; }
+  if(e.target.closest('[data-open-install]')){ openSheet('installSheet'); return; }
   if(e.target.closest('[data-more]')){ showMore(); return; }
   if(e.target.closest('#gpxBtn')){ downloadGpx(); return; }
   if(e.target.closest('#tourShare')) share();

@@ -204,6 +204,28 @@ input:focus,select:focus{outline:none;border-color:var(--a1);box-shadow:0 0 0 3p
 .shimmer{background:linear-gradient(90deg,var(--raise),var(--line2),var(--raise));background-size:200% 100%;animation:shimmer 1.2s linear infinite;border-radius:10px}
 @keyframes shimmer{to{background-position:-200% 0}}
 
+/* Galerie */
+.gal{position:absolute;inset:0;display:flex;overflow-x:auto;scroll-snap-type:x mandatory;scrollbar-width:none}
+.gal::-webkit-scrollbar{display:none}
+.gal figure{flex:0 0 100%;margin:0;scroll-snap-align:center;position:relative;background:var(--hero)}
+.gal img{width:100%;height:100%;object-fit:cover;opacity:0;transition:opacity .4s}
+.gal img.loaded{opacity:1}
+.gal-dots{position:absolute;left:0;right:0;bottom:30px;display:flex;justify-content:center;gap:6px;pointer-events:none}
+.gal-dots span{width:6px;height:6px;border-radius:3px;background:rgba(255,255,255,.55);box-shadow:0 0 2px rgba(0,0,0,.5);transition:width .2s}
+.gal-dots span.on{width:16px;background:#fff}
+.gal-nav{position:absolute;top:50%;margin-top:-20px;width:40px;height:40px;border-radius:50%;border:0;background:rgba(0,0,0,.45);color:#fff;display:none;place-items:center}
+.gal-nav.prev{left:10px}.gal-nav.next{right:10px}
+@media (hover:hover){.hero:hover .gal-nav{display:grid}}
+.hero .credit{left:10px;right:10px;text-align:right;text-decoration:none;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.hero{height:230px}
+/* Installieren */
+.install-card{width:100%;display:flex;align-items:center;gap:12px;text-align:left;border:0;border-radius:16px;background:var(--chip);color:var(--onchip);padding:14px 14px 14px 16px;margin:4px 0 6px}
+.install-card span{flex:1}
+.install-card b{display:block;font-weight:700;font-size:16px}
+.install-card small{display:block;font-size:13px;opacity:.8}
+.steps{margin:0;padding:0;list-style:none;counter-reset:st;display:grid;gap:12px}
+.steps li{counter-increment:st;display:grid;grid-template-columns:32px 1fr;gap:12px;align-items:start;font-size:15px}
+.steps li::before{content:counter(st);width:32px;height:32px;border-radius:50%;background:var(--a1);color:var(--on1);display:grid;place-items:center;font-weight:700}
 /* Tour */
 .tour-sum{font-size:14px;color:var(--muted);margin:0 0 14px}
 .tour-top{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;margin-bottom:12px}
