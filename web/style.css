@@ -85,7 +85,7 @@ svg.i{display:block;flex:none}
 
 /* Liste als Strecke: Kilometer links, Ziele rechts */
 .road{list-style:none;margin:0;padding:0}
-.hit{display:grid;grid-template-columns:40px 1fr;gap:10px;align-items:center;border-radius:14px;padding:6px 0;transition:background .2s}
+.hit{content-visibility:auto;contain-intrinsic-size:auto 56px;display:grid;grid-template-columns:40px 1fr;gap:10px;align-items:center;border-radius:14px;padding:6px 0;transition:background .2s}
 .hit.in-tour{background:var(--raise);padding-right:8px}
 .hit.active{box-shadow:inset 0 0 0 2px var(--a1)}
 .hit .km{font-weight:700;font-stretch:112%;font-size:15px;color:var(--muted);text-align:right;font-variant-numeric:tabular-nums}
@@ -103,6 +103,12 @@ svg.i{display:block;flex:none}
 .stopmark .km{font-weight:700;font-size:13px;color:var(--a1);text-align:right}
 .stopmark b{font-weight:700;font-stretch:112%;font-size:14px;display:flex;align-items:center;gap:8px}
 .stopmark b::before{content:"";width:12px;height:12px;border-radius:50%;border:3px solid var(--a1)}
+.many{background:var(--a2soft);border-radius:14px;padding:12px 14px;margin:0 0 10px;font-size:14px;display:grid;gap:10px}
+.many b{font-weight:700}
+.many .filter-btn{justify-self:start}
+.more{list-style:none;padding:10px 0 4px}
+.link-row{flex-wrap:wrap}
+.link-row .secondary-btn{flex:1 1 140px}
 .section-label{font-weight:600;font-size:13px;color:var(--muted);margin:16px 4px 6px}
 .empty{padding:20px 6px;color:var(--muted)}
 .empty .primary-btn{margin-top:12px}

@@ -1,5 +1,5 @@
 {
- "_hinweis": "Einzige Quelle für Kategorien. q = OSM-Tags; need = zusätzliche Bedingung (eine reicht); named = nur Orte mit Namen übernehmen; place = in/out. Reihenfolge zählt: speziellere Unterkategorien und Oberkategorien zuerst. Bei \"tag\"-Bedingungen zählt auch ein Wert aus einer Liste mit Semikolon (z. B. cuisine=italian;pizza).",
+ "_hinweis": "Einzige Quelle für Kategorien. q = OSM-Tags; need = zusätzliche Bedingung (eine reicht); named = nur Orte mit Namen übernehmen; place = in/out. Reihenfolge zählt: speziellere Unterkategorien und Oberkategorien zuerst. Bei \"tag\"-Bedingungen zählt auch ein Wert aus einer Liste mit Semikolon (z. B. cuisine=italian;pizza). exclude = Ausschluss bei diesen Tag-Werten; min_area = Mindestfläche in m² (nur Flächen).",
  "main": [
   {
    "id": "action",
@@ -486,6 +486,38 @@
       ]
      ],
      "named": true,
+     "place": "out"
+    },
+    {
+     "id": "see",
+     "e": "💧",
+     "label": "See",
+     "q": [
+      [
+       "natural",
+       "water"
+      ]
+     ],
+     "named": true,
+     "min_area": 50000,
+     "exclude": [
+      {
+       "tag": "water",
+       "in": [
+        "river",
+        "canal",
+        "stream",
+        "wastewater",
+        "moat",
+        "ditch",
+        "lock",
+        "drain",
+        "fish_pass",
+        "stream_pool",
+        "basin"
+       ]
+      }
+     ],
      "place": "out"
     },
     {

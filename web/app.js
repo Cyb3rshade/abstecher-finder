@@ -58,7 +58,10 @@ const ICONS = {
   utensils:'<path d="M7 3v8M5 3v5a2 2 0 0 0 4 0V3M7 11v10M17 3c-2 1.5-3 4-3 7h3v11"/>', menu:'<path d="M6 3h12v18H6z"/><path d="M9 8h6M9 12h6M9 16h4"/>', phone:'<path d="M5 4h4l2 5-2.5 1.5a11 11 0 0 0 5 5L15 13l5 2v4a2 2 0 0 1-2 2A16 16 0 0 1 3 6a2 2 0 0 1 2-2z"/>', search:'<circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/>', bag:'<path d="M5 8h14l-1 12H6z"/><path d="M9 8a3 3 0 0 1 6 0"/>',
   pin:'<path d="M12 21s-7-6.5-7-12a7 7 0 0 1 14 0c0 5.5-7 12-7 12z"/><circle cx="12" cy="9" r="2.5"/>',
 };
-const icon = (n, s=20, w=1.9) => `<svg class="i" width="${s}" height="${s}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${ICONS[n] || ICONS.pin}</svg>`;
+// Alle Symbole einmal als <symbol> ins Dokument, danach nur noch per <use> referenzieren (spart tausende DOM-Knoten)
+(() => { const sp = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); sp.setAttribute('aria-hidden', 'true'); sp.style.cssText = 'position:absolute;width:0;height:0;overflow:hidden';
+  sp.innerHTML = Object.entries(ICONS).map(([k, v]) => `<symbol id="i-${k}" viewBox="0 0 24 24">${v}</symbol>`).join(''); document.body.prepend(sp); })();
+const icon = (n, s=20, w=1.9) => `<svg class="i" width="${s}" height="${s}" fill="none" stroke="currentColor" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><use href="#i-${ICONS[n] ? n : 'pin'}"/></svg>`;
 const MAIN_ICON = {action:'wheel', fun:'dice', wellness:'spa', water:'wave', animals:'paw', nature:'tree', culture:'museum', food:'utensils', shopping:'bag'};
 const catIcon = m => MAIN_ICON[m?.id] || 'pin';
 const tileHtml = (m, size=42, is=22) => `<span class="tile" style="width:${size}px;height:${size}px;background:var(--c-${m.id},#777);color:var(--o-${m.id},#fff)">${icon(catIcon(m), is, 1.8)}</span>`;
@@ -71,23 +74,32 @@ function applyTheme(){
   const t = settings.theme === 'auto' ? (darkMq.matches ? 'dark' : 'light') : settings.theme;
   document.documentElement.dataset.theme = t;
   $('themeColor').setAttribute('content', t === 'dark' ? '#000000' : '#F4F4F4');
-  if(state.route) drawRoute(false);
+  if(state.route){ drawRoute(false); if(state.results.length) render(); }
 }
 darkMq.addEventListener?.('change', () => settings.theme === 'auto' && applyTheme());
 const saveSettings = () => store.set('af-settings', settings);
-const cssVar = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const cssCache = new Map();
+const cssVar = n => { const t = document.documentElement.dataset.theme + n; if(!cssCache.has(t)) cssCache.set(t, getComputedStyle(document.documentElement).getPropertyValue(n).trim()); return cssCache.get(t); };
 
 // ===================== Zusatzfilter =====================
+// cats: für welche Oberkategorien ein Extra gilt (fehlt = alle). Andere Kategorien bleiben davon unberührt.
+const LEISURE = ['action', 'fun', 'wellness', 'water', 'animals', 'culture'];
 const EXTRAS = [
-  {id:'in',    label:'Drinnen',            test:r=>r.indoor, excl:'out'},
-  {id:'out',   label:'Draußen',            test:r=>!r.indoor, excl:'in'},
-  {id:'wx',    label:'Wetterunabhängig',   test:r=>r.indoor || r.t.covered==='yes'},
-  {id:'dog',   label:'Hundefreundlich',    test:r=>['yes','leashed','outside'].includes(r.t.dog)},
-  {id:'wheel', label:'Rollstuhlgerecht',   test:r=>['yes','limited'].includes(r.t.wheelchair)},
-  {id:'free',  label:'Kostenlos',          test:r=>r.t.fee==='no'},
-  {id:'veg',   label:'Vegetarisch oder vegan', test:r=>['yes','only'].includes(r.t['diet:vegetarian']) || ['yes','only'].includes(r.t['diet:vegan']) || /vegetarian|vegan/.test(r.t.cuisine || '')},
-  {id:'pic',   label:'Mit Bild und Infos', test:r=>!!(r.t.wikipedia || r.t.wikidata)},
+  {id:'in',     label:'Drinnen',             cats:LEISURE, test:r=>r.indoor, excl:'out'},
+  {id:'out',    label:'Draußen',             cats:LEISURE, test:r=>!r.indoor, excl:'in'},
+  {id:'wx',     label:'Wetterunabhängig',    cats:LEISURE, test:r=>r.indoor || r.t.covered==='yes'},
+  {id:'free',   label:'Kostenlos',           cats:['action','fun','water','animals','nature','culture'], test:r=>r.t.fee==='no'},
+  {id:'kids',   label:'Kinderfreundlich',    cats:['food'], test:r=>(r.t.kids_area && r.t.kids_area!=='no') || r.t.highchair==='yes' || (r.t.changing_table && r.t.changing_table!=='no')},
+  {id:'terrace',label:'Außenbereich',        cats:['food'], test:r=>!!r.t.outdoor_seating && r.t.outdoor_seating!=='no'},
+  {id:'veg',    label:'Vegetarisch oder vegan', cats:['food'], test:r=>['yes','only'].includes(r.t['diet:vegetarian']) || ['yes','only'].includes(r.t['diet:vegan']) || /vegetarian|vegan/.test(r.t.cuisine || '')},
+  {id:'dog',    label:'Hundefreundlich',     test:r=>['yes','leashed','outside'].includes(r.t.dog)},
+  {id:'wheel',  label:'Rollstuhlgerecht',    test:r=>['yes','limited'].includes(r.t.wheelchair)},
+  {id:'pic',    label:'Mit Bild und Infos',  test:r=>!!(r.t.wikipedia || r.t.wikidata)},
 ];
+const extraApplies = (x, r) => !x.cats || x.cats.includes(r.m.id);
+// Extras, die zu den gewählten Kategorien passen (nichts gewählt = alle)
+const relevantExtras = () => EXTRAS.filter(x => !x.cats || !state.mains.size || x.cats.some(c => state.mains.has(c)));
+const LIST_LIMIT = 1000, LIST_STEP = 150;
 const STAY = {tpark:300, zoo:180, wild:150, pet:60, bird:120, wpark:180, therme:180, lake:120, ski:120, golf:60, foot:90, bowl:90, escape:75,
   laser:60, tramp:90, kart:60, ropes:150, gym:120, skihall:180, paint:120, rodel:45, play:90, advplay:60, museum:90, tech:120, open:150,
   castle:60, abbey:45, treetop:90, tower:30, view:20, fall:30, heath:60, garden:60, icecream:20, beer:60, cafe:45, outlet:120, factory:45, farm:20, sauna:120};
@@ -101,14 +113,15 @@ const state = {
   route: null, results: [], byId: new Map(), favs: store.get('af-favs', {}), tips: new Set(), favOnly: false,
   plan: Object.assign({dep: '09:00', stay: {}}, store.get('af-plan', {})),
   tour: [], tourRoute: null, tourBusy: false, pendingTour: null,
-  markers: {}, activeId: null, lastSurprise: null, sheet: null,
+  activeId: null, lastSurprise: null, sheet: null, listShown: 150, lastCount: -1,
 };
 
 // ===================== Karte =====================
-const map = L.map('map', {zoomControl: false, attributionControl: true}).setView([50.5, 9.5], 6);
+const map = L.map('map', {zoomControl: false, attributionControl: true, preferCanvas: true}).setView([50.5, 9.5], 6);
+const pinRenderer = L.canvas({padding: .5, tolerance: 6});
 if(!isNarrow()) L.control.zoom({position: 'topright'}).addTo(map);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende'}).addTo(map);
-const routeLayer = L.layerGroup().addTo(map), poiLayer = L.layerGroup().addTo(map);
+const routeLayer = L.layerGroup().addTo(map);
 function mapPadding(){
   if(isNarrow()) return {paddingTopLeft: [30, 110], paddingBottomRight: [30, Math.round(innerHeight * .52) + 20]};
   return {paddingTopLeft: [40, 40], paddingBottomRight: [state.sheet ? 440 : 40, 40]};
@@ -118,9 +131,9 @@ function drawRoute(animate){
   const R = state.route; if(!R) return;
   const coords = state.tour.length && state.tourRoute ? state.tourRoute.coords : R.coords;
   const a1 = cssVar('--a1'), ring = cssVar('--pinring'), line2 = cssVar('--line2');
-  if(state.tour.length) L.polyline(R.coords, {color: cssVar('--muted'), weight: 3, opacity: .6, dashArray: '6 8'}).addTo(routeLayer);
-  const glow = L.polyline(coords, {color: a1, weight: 16, opacity: .16}).addTo(routeLayer);
-  const line = L.polyline(coords, {color: a1, weight: 5, opacity: 1}).addTo(routeLayer);
+  if(state.tour.length) L.polyline(R.coords, {color: cssVar('--muted'), weight: 3, opacity: .6, dashArray: '6 8', interactive: false}).addTo(routeLayer);
+  const glow = L.polyline(coords, {color: a1, weight: 16, opacity: .16, interactive: false}).addTo(routeLayer);
+  const line = L.polyline(coords, {color: a1, weight: 5, opacity: 1, interactive: false}).addTo(routeLayer);
   R.points.forEach((p, i) => L.circleMarker(p, {radius: i === 0 || i === R.points.length-1 ? 8 : 6, color: a1, weight: 3, fillColor: ring, fillOpacity: 1})
     .bindTooltip(esc(state.stops[i]), {direction: 'top', offset: [0, -8]}).addTo(routeLayer));
   if(!animate || reduceMotion) return;
@@ -262,13 +275,18 @@ async function search(ev){
     const coords = rt.geometry.coordinates.map(([lo, la]) => [la, lo]);
     state.route = {coords, dist: rt.distance, dur: rt.duration, legEnds, legDur: rt.legs.map(l => l.duration), radius, points};
     closeSheet(); routeStatus('');
-    poiLayer.clearLayers(); state.results = []; state.byId = new Map();
+    poiCanvas.setItems([]); state.results = []; state.byId = new Map();
     drawRoute(true);
     map.fitBounds(L.latLngBounds(coords), {...mapPadding(), animate: false});
     setPanel('half');
     $('listSub').textContent = 'Sidequests werden geladen …'; setProgress(0);
 
     const dense = sampleRoute(coords, 300);
+    // Routenpunkte in ein Raster einsortieren: pro Ziel nur die Punkte in der Nachbarschaft prüfen
+    const cellLa = radius / 111320, cellLo = radius / (111320 * Math.cos(coords[0][0] * Math.PI / 180)), grid = new Map();
+    dense.forEach(d => { const k = Math.floor(d.p[0] / cellLa) + ':' + Math.floor(d.p[1] / cellLo); (grid.get(k) || grid.set(k, []).get(k)).push(d); });
+    const near = (lat, lon) => { const i = Math.floor(lat / cellLa), j = Math.floor(lon / cellLo), out = [];
+      for(let a = -1; a <= 1; a++) for(let b = -1; b <= 1; b++){ const g = grid.get((i + a) + ':' + (j + b)); if(g) out.push(...g); } return out; };
     let s=90, w=180, n=-90, e=-180;
     coords.forEach(([la, lo]) => { s=Math.min(s,la); n=Math.max(n,la); w=Math.min(w,lo); e=Math.max(e,lo); });
     const pad = radius / 111320, padLo = radius / (111320 * Math.cos((s+n)/2 * Math.PI/180));
@@ -278,8 +296,9 @@ async function search(ev){
         if(lat < s-pad || lat > n+pad || lon < w-padLo || lon > e+padLo) continue;
         const sub = state.SUB[sid]; if(!sub) continue;
         const key = (t.name || '') + sid + lat.toFixed(3) + lon.toFixed(3); if(seen.has(key)) continue;
+        const cand = near(lat, lon); if(!cand.length) continue;
         let off = Infinity, km = 0;
-        for(const d of dense){ const x = hav([lat, lon], d.p); if(x < off){ off = x; km = d.c; } }
+        for(const d of cand){ const x = hav([lat, lon], d.p); if(x < off){ off = x; km = d.c; } }
         if(off > radius) continue;
         seen.add(key);
         state.results.push({id, name: t.name || '', s: sub, m: sub.m, lat, lon, off, km, t, mins: detourMin(off),
@@ -292,6 +311,8 @@ async function search(ev){
     $('shareBtn').disabled = false;
     await updateTour(false);
     syncHash(); render(true);
+    const found = visible().length;
+    if(found > LIST_LIMIT){ toast(`${found} Sidequests gefunden, grenze die Auswahl ein`); setTimeout(() => openSheet('filterSheet'), 600); }
   }catch(err){ routeStatus(err.message, true); openSheet('routeSheet'); }
   finally{ $('goBtn').disabled = false; setProgress(null); }
 }
@@ -307,7 +328,7 @@ function passBase(r){
   const picked = r.m.subs.filter(s => state.subs.has(s.id));
   return !picked.length || picked.includes(r.s);
 }
-const passExtras = r => EXTRAS.every(x => !state.extras.has(x.id) || x.test(r));
+const passExtras = r => EXTRAS.every(x => !state.extras.has(x.id) || !extraApplies(x, r) || x.test(r));
 const named = r => !settings.named || r.name;
 const visible = () => state.results.filter(r => passBase(r) && passExtras(r));
 const refineCount = () => state.subs.size + state.extras.size + (state.kw ? 1 : 0) + (state.route && state.maxOff < state.route.radius ? 1 : 0);
@@ -329,8 +350,13 @@ function renderFilter(){
       `<button type="button" class="chip" data-sub="${s.id}" aria-pressed="${state.subs.has(s.id)}">${esc(s.label)}${R ? ` <span class="n">${n}</span>` : ''}</button>`).join('')}</div>`;
   }
   const base = state.results.filter(passBase);
-  h += `<div class="group-label">Extras</div><div class="chips">${EXTRAS.map(x =>
-    `<button type="button" class="chip" data-extra="${x.id}" aria-pressed="${state.extras.has(x.id)}">${x.label}${R ? ` <span class="n">${base.filter(x.test).length}</span>` : ''}</button>`).join('')}</div>`;
+  const scope = x => { if(!x.cats) return ''; const names = state.MAIN.filter(m => x.cats.includes(m.id) && (!state.mains.size || state.mains.has(m.id))).map(m => m.label);
+    return x.cats.length < 4 && names.length ? ` <span class="n">(${esc(names.join(', '))})</span>` : ''; };
+  const exCount = x => base.filter(r => extraApplies(x, r) && x.test(r)).length;
+  // Nach der Suche nur Extras zeigen, für die es Treffer gibt (aktive bleiben sichtbar)
+  const exList = relevantExtras().filter(x => !R || state.extras.has(x.id) || exCount(x) > 0);
+  if(exList.length) h += `<div class="group-label">Extras</div><div class="chips">${exList.map(x =>
+    `<button type="button" class="chip" data-extra="${x.id}" aria-pressed="${state.extras.has(x.id)}">${x.label}${scope(x)}${R ? ` <span class="n">${exCount(x)}</span>` : ''}</button>`).join('')}</div>`;
   const max = R ? R.radius : state.radius;
   const opts = [2000, 5000, 10000].filter(v => v < max).concat([max]);
   h += `<div class="group-label">Höchstens so weit von der Route</div><div class="seg">${opts.map(v =>
@@ -345,6 +371,7 @@ $('filterBody').addEventListener('click', e => {
   else if(x){ const ex = EXTRAS.find(k => k.id === x.dataset.extra); toggle(state.extras, ex.id); if(state.extras.has(ex.id) && ex.excl) state.extras.delete(ex.excl); }
   else if(d) state.maxOff = +d.dataset.dist;
   else return;
+  const rel = new Set(relevantExtras().map(x => x.id)); [...state.extras].forEach(id => { if(!rel.has(id)) state.extras.delete(id); });
   render(); renderFilter();
 });
 $('filterBody').addEventListener('input', e => { if(e.target.id === 'kw'){ state.kw = e.target.value.trim().toLowerCase(); render(); $('applyFilters').textContent = state.route ? `${visible().length} Ziele anzeigen` : 'Übernehmen'; } });
@@ -357,22 +384,65 @@ function renderQuickCats(){
 }
 $('quickCats').addEventListener('click', e => { const b = e.target.closest('[data-quick]'); if(b){ toggle(state.mains, b.dataset.quick); render(); } });
 
-function renderMarkers(items, animate){
-  poiLayer.clearLayers(); state.markers = {};
+// Alle Ziele werden in EINEM Canvas gezeichnet. Klick und Hover laufen über eine Suche nach dem nächsten Punkt.
+const PoiLayer = L.Layer.extend({
+  onAdd(m){
+    this._c = L.DomUtil.create('canvas', 'poi-canvas'); this._c.style.position = 'absolute'; this._c.style.pointerEvents = 'none';
+    m.getPane('overlayPane').appendChild(this._c);
+    this._items = this._items || []; this._pts = [];
+    m.on('moveend resize viewreset', this._reset, this);
+    m.on('zoomstart', this._hide, this); m.on('zoomend', this._reset, this);
+    m.on('click', this._click, this); if(canHover) m.on('mousemove', this._hover, this);
+    this._tip = L.tooltip({direction: 'top', offset: [0, -10]});
+    this._reset();
+  },
+  onRemove(m){ this._c.remove(); m.off('moveend resize viewreset', this._reset, this).off('zoomstart', this._hide, this).off('zoomend', this._reset, this).off('click', this._click, this).off('mousemove', this._hover, this); },
+  setItems(items){ this._items = items; this.redraw(); },
+  _hide(){ this._c.style.visibility = 'hidden'; },
+  _reset(){
+    const m = this._map, size = m.getSize(), dpr = window.devicePixelRatio || 1, c = this._c;
+    c.width = size.x * dpr; c.height = size.y * dpr; c.style.width = size.x + 'px'; c.style.height = size.y + 'px';
+    L.DomUtil.setPosition(c, m.containerPointToLayerPoint([0, 0])); c.style.visibility = ''; this.redraw();
+  },
+  redraw(){
+    if(!this._map) return;
+    const m = this._map, c = this._c, ctx = c.getContext('2d'), dpr = window.devicePixelRatio || 1, size = m.getSize();
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.clearRect(0, 0, size.x, size.y);
+    const z = m.getZoom(), base = z <= 7 ? 4 : z <= 9 ? 5.5 : 7, ring = cssVar('--pinring'), a2 = cssVar('--a2'), pts = [];
+    const tourSet = new Set(state.tour);
+    const order = this._items.slice().sort((a, b) => (tourSet.has(a.id) - tourSet.has(b.id)) || ((a.id === state.activeId) - (b.id === state.activeId)));
+    for(const r of order){
+      const p = m.latLngToContainerPoint([r.lat, r.lon]);
+      if(p.x < -20 || p.y < -20 || p.x > size.x + 20 || p.y > size.y + 20) continue;
+      const inTour = tourSet.has(r.id), active = r.id === state.activeId, rad = active ? 11 : inTour ? base + 2.5 : base;
+      ctx.beginPath(); ctx.arc(p.x, p.y, rad, 0, Math.PI * 2);
+      ctx.fillStyle = cssVar('--c-' + r.m.id) || '#777'; ctx.fill();
+      ctx.lineWidth = inTour ? 4 : z <= 7 ? 1.5 : 2.5; ctx.strokeStyle = inTour ? a2 : ring; ctx.stroke();
+      if(active){ ctx.beginPath(); ctx.arc(p.x, p.y, rad + 5, 0, Math.PI * 2); ctx.lineWidth = 2; ctx.strokeStyle = cssVar('--a1'); ctx.stroke(); }
+      pts.push([p.x, p.y, rad, r]);
+    }
+    this._pts = pts;
+  },
+  _nearest(cp){
+    let best = null, bd = Infinity;
+    for(const [x, y, rad, r] of this._pts){ const d = (x - cp.x) ** 2 + (y - cp.y) ** 2, lim = (rad + 8) ** 2; if(d <= lim && d < bd){ bd = d; best = r; } }
+    return best;
+  },
+  _click(e){ const r = this._nearest(e.containerPoint); if(r) openDetail(r.id); },
+  _hover(e){
+    const r = this._nearest(e.containerPoint), el = this._map.getContainer();
+    el.style.cursor = r ? 'pointer' : '';
+    if(r){ this._tip.setLatLng([r.lat, r.lon]).setContent(esc(r.name || r.s.label)); if(!this._map.hasLayer(this._tip)) this._tip.addTo(this._map); }
+    else if(this._map.hasLayer(this._tip)) this._map.removeLayer(this._tip);
+  },
+});
+const poiCanvas = new PoiLayer().addTo(map);
+function renderMarkers(items){
   const show = new Map(items.map(r => [r.id, r]));
   state.tour.forEach(id => { const r = state.byId.get(id); if(r) show.set(id, r); });
-  const total = state.route?.dist || 1;
-  show.forEach(r => {
-    const inTour = state.tour.includes(r.id);
-    const delay = animate && !reduceMotion ? Math.round(900 + r.km / total * 700) : 0;
-    const cls = `pin${inTour ? ' tour' : ''}${r.id === state.activeId ? ' active' : ''}${animate ? ' enter' : ''}`;
-    const sz = inTour ? 34 : 24;
-    const mk = L.marker([r.lat, r.lon], {icon: L.divIcon({className: '', html: `<div class="${cls}" style="--pc:var(--c-${r.m.id});--d:${delay}ms;margin:${(sz - (inTour ? 22 : 18))/2}px"></div>`, iconSize: [sz, sz], iconAnchor: [sz/2, sz/2]}),
-      zIndexOffset: inTour ? 500 : 0, title: r.name || r.s.label, alt: r.name || r.s.label, keyboard: true}).on('click', () => openDetail(r.id)).addTo(poiLayer);
-    if(canHover) mk.bindTooltip(esc(r.name || r.s.label), {direction: 'top', offset: [0, -10]});
-    state.markers[r.id] = mk;
-  });
+  poiCanvas.setItems([...show.values()]);
 }
+const highlightPin = () => poiCanvas.redraw();
 function hitHtml(r){
   const inTour = state.tour.includes(r.id);
   const meta = r.offRoute ? `${esc(r.s.label)}, nicht auf dieser Route` : `${esc(r.s.label)}, ca. +${r.mins} min`;
@@ -396,12 +466,29 @@ function renderList(items){
   }
   if(!items.length) return '<p class="empty">Nichts passt zu deinen Filtern. Lockere die Filter oder plane die Route mit größerem Abstand.</p>';
   const out = []; let leg = 0;
-  for(const r of items){
+  const many = items.length > LIST_LIMIT ? `<div class="many"><p style="margin:0"><b>${items.length} Sidequests</b> sind eine Menge. Grenze die Auswahl ein, dann wird es übersichtlicher.</p><button type="button" class="filter-btn" data-open-filter>${icon('filter', 18, 2.2)}Filter öffnen</button></div>` : '';
+  for(const r of items.slice(0, state.listShown)){
     while(leg < R.legEnds.length-1 && r.km > R.legEnds[leg]){ out.push(`<li class="stopmark"><span class="km">${fmtKm(R.legEnds[leg])}</span><b>${esc(state.stops[leg+1])}</b></li>`); leg++; }
     out.push(hitHtml(r));
   }
-  return `<ol class="road">${out.join('')}</ol>`;
+  const more = items.length > state.listShown ? `<li class="more" id="listMore"><button type="button" class="secondary-btn" data-more>Weitere ${Math.min(LIST_STEP, items.length - state.listShown)} anzeigen</button></li>` : '';
+  return `${many}<ol class="road">${out.join('')}${more}</ol>`;
 }
+// Beim Scrollen automatisch nachladen
+const moreObserver = 'IntersectionObserver' in window ? new IntersectionObserver(es => { if(es.some(e => e.isIntersecting)) showMore(); }, {rootMargin: '1200px'}) : null;
+function showMore(){
+  const items = state.lastItems || visible(), from = state.listShown; state.listShown += LIST_STEP;
+  const road = $('list').querySelector('.road'), more = $('listMore'); if(!road || !more){ $('list').innerHTML = renderList(items); observeMore(); return; }
+  const R = state.route, out = []; let leg = R.legEnds.findIndex(e => e >= (items[from - 1]?.km ?? 0)); if(leg < 0) leg = R.legEnds.length - 1;
+  for(const r of items.slice(from, state.listShown)){
+    while(leg < R.legEnds.length-1 && r.km > R.legEnds[leg]){ out.push(`<li class="stopmark"><span class="km">${fmtKm(R.legEnds[leg])}</span><b>${esc(state.stops[leg+1])}</b></li>`); leg++; }
+    out.push(hitHtml(r));
+  }
+  more.insertAdjacentHTML('beforebegin', out.join(''));
+  if(state.listShown >= items.length) more.remove(); else more.querySelector('button').textContent = `Weitere ${Math.min(LIST_STEP, items.length - state.listShown)} anzeigen`;
+  observeMore();
+}
+function observeMore(){ moreObserver?.disconnect(); const m = $('listMore'); if(m && moreObserver) moreObserver.observe(m); }
 function arrival(){
   const T = state.tourRoute; if(!T) return null;
   const [hh, mm] = (state.plan.dep || '09:00').split(':').map(Number);
@@ -420,7 +507,9 @@ function renderTourbar(){
 }
 function render(animate=false){
   const items = visible();
-  renderMarkers(items, animate);
+  if(!animate && state.lastCount !== items.length) state.listShown = LIST_STEP;
+  state.lastCount = items.length; state.lastItems = items;
+  renderMarkers(items);
   renderQuickCats();
   const R = state.route;
   $('listTitle').textContent = state.favOnly ? 'Gemerkt' : R ? `${items.length} Sidequest${items.length === 1 ? '' : 's'}` : 'Sidequests';
@@ -428,7 +517,7 @@ function render(animate=false){
   const rc = refineCount(); $('filterBadge').hidden = !rc; $('filterBadge').textContent = rc;
   const fc = Object.keys(state.favs).length; $('favCount').textContent = fc || '';
   $('favToggle').setAttribute('aria-pressed', state.favOnly);
-  $('list').innerHTML = renderList(items);
+  $('list').innerHTML = renderList(items); observeMore();
   renderTourbar(); renderTopbar();
   if(state.sheet === 'tourSheet') renderTour();
 }
@@ -485,7 +574,7 @@ function closeSheet(){
   const s = $(id); s.classList.remove('open'); state.sheet = null;
   const scrim = $('scrim'); scrim.classList.remove('show');
   setTimeout(() => { if(state.sheet !== id) s.hidden = true; if(!state.sheet) scrim.hidden = true; }, 340);
-  if(id === 'detailSheet'){ state.activeId = null; document.querySelectorAll('.pin.active').forEach(p => p.classList.remove('active')); document.querySelectorAll('.hit.active').forEach(h => h.classList.remove('active')); }
+  if(id === 'detailSheet'){ state.activeId = null; highlightPin(null); document.querySelectorAll('.hit.active').forEach(h => h.classList.remove('active')); }
 }
 document.addEventListener('click', e => { if(e.target.closest('[data-close]')) closeSheet(); });
 $('scrim').addEventListener('click', closeSheet);
@@ -544,19 +633,23 @@ let detailSeq = 0;
 async function openDetail(id){
   const r = findEntry(id); if(!r) return;
   const seq = ++detailSeq; state.activeId = id;
-  document.querySelectorAll('.pin.active').forEach(p => p.classList.remove('active'));
-  state.markers[id]?.getElement()?.querySelector('.pin')?.classList.add('active');
+  highlightPin(id);
   document.querySelectorAll('.hit.active').forEach(h => h.classList.remove('active'));
   document.querySelector(`[data-open="${CSS.escape(id)}"]`)?.closest('.hit')?.classList.add('active');
   const t = r.t || {}, web = t.website || t['contact:website'];
   const isFood = r.s.id.startsWith('r_') || ['cafe', 'beer'].includes(r.s.id);
   const menu = t['website:menu'] || t['menu:url'], phone = t.phone || t['contact:phone'];
   const menuSearch = `https://www.google.com/search?q=${enc([r.name, t['addr:city'], 'Speisekarte'].filter(Boolean).join(' '))}`;
-  const foodRow = isFood && r.name ? `<div class="btn-row" style="margin-top:0">
-      <a class="secondary-btn" href="${esc(menu || menuSearch)}" target="_blank" rel="noopener">${icon(menu ? 'menu' : 'search', 18)}${menu ? 'Speisekarte' : 'Speisekarte suchen'}</a>
+  const gQuery = [r.name, t['addr:city']].filter(Boolean).join(', ') || `${r.lat},${r.lon}`;
+  const foodRow = r.name ? `<div class="btn-row link-row" style="margin-top:0">
+      <a class="secondary-btn" href="https://www.google.com/maps/search/?api=1&query=${enc(r.name + ' ' + (t['addr:city'] || ''))}" target="_blank" rel="noopener">${icon('star', 18)}Bewertungen auf Google</a>
+      ${isFood ? `<a class="secondary-btn" href="${esc(menu || menuSearch)}" target="_blank" rel="noopener">${icon(menu ? 'menu' : 'search', 18)}${menu ? 'Speisekarte' : 'Speisekarte suchen'}</a>` : ''}
       ${phone ? `<a class="secondary-btn" href="tel:${esc(phone.split(';')[0].replace(/[^+\d]/g, ''))}">${icon('phone', 18)}Anrufen</a>` : ''}</div>` : '';
+  const kidsBits = [t.kids_area && t.kids_area !== 'no' && 'Spielecke', t.highchair === 'yes' && 'Hochstuhl', t.changing_table && t.changing_table !== 'no' && 'Wickeltisch'].filter(Boolean);
   const facts = [
     t.cuisine && ['utensils', esc(cuisineText(t.cuisine))],
+    kidsBits.length && ['paw', 'Für Kinder: ' + kidsBits.join(', ')],
+    t.outdoor_seating && t.outdoor_seating !== 'no' && ['sunny', 'Mit Außenbereich'],
     t.opening_hours && ['clock', esc(t.opening_hours)],
     t.fee && ['euro', t.fee === 'no' ? 'Eintritt frei' : t.fee === 'yes' ? 'Eintritt kostenpflichtig' : esc(t.fee)],
     t.wheelchair && ['wheelchair', {yes: 'Rollstuhlgerecht', limited: 'Eingeschränkt rollstuhlgerecht', no: 'Nicht rollstuhlgerecht'}[t.wheelchair] || esc(t.wheelchair)],
@@ -576,7 +669,7 @@ async function openDetail(id){
       ${facts.length ? `<dl class="facts">${facts.map(([i, v]) => `<dt>${icon(i)}</dt><dd>${v}</dd>`).join('')}</dl>` : ''}
     </div>`;
   openSheet('detailSheet'); $('detailSheet').scrollTop = 0;
-  if(state.markers[id]){ const ll = state.markers[id].getLatLng(); if(!map.getBounds().pad(-.15).contains(ll)) map.panTo(ll, {animate: !reduceMotion}); }
+  if(r.lat != null){ const ll = L.latLng(r.lat, r.lon); if(!map.getBounds().pad(-.15).contains(ll)) map.panTo(ll, {animate: !reduceMotion}); }
   weather(r.lat, r.lon).then(days => { if(seq !== detailSeq) return;
     $('dWx').innerHTML = days.map((d, i) => { const [ic, txt] = WMO(d.code);
       return `<div>${icon(ic, 24, 1.6)}<b>${Math.round(d.max)}° / ${Math.round(d.min)}°</b>${['Heute', 'Morgen', 'Übermorgen'][i]}<span>${txt}, ${d.rain ?? 0} % Regen</span></div>`; }).join('');
@@ -771,6 +864,8 @@ document.addEventListener('click', e => {
   const fv = e.target.closest('[data-fav]'); if(fv){ toggleFav(fv.dataset.fav); return; }
   if(e.target.closest('[data-open-tour]')){ openSheet('tourSheet'); return; }
   if(e.target.closest('[data-open-route]')){ openSheet('routeSheet'); return; }
+  if(e.target.closest('[data-open-filter]')){ openSheet('filterSheet'); return; }
+  if(e.target.closest('[data-more]')){ showMore(); return; }
   if(e.target.closest('#gpxBtn')){ downloadGpx(); return; }
   if(e.target.closest('#tourShare')) share();
 });
