@@ -17,7 +17,8 @@ from collections import defaultdict
 
 KEEP = ['name', 'wikidata', 'wikipedia', 'website', 'contact:website', 'opening_hours', 'wheelchair', 'dog', 'fee',
         'covered', 'indoor', 'building', 'zoo', 'museum',
-        'cuisine', 'diet:vegetarian', 'diet:vegan', 'website:menu', 'menu:url', 'addr:city', 'phone', 'contact:phone']
+        'cuisine', 'diet:vegetarian', 'diet:vegan', 'website:menu', 'menu:url', 'addr:city', 'phone', 'contact:phone',
+        'kids_area', 'highchair', 'changing_table', 'outdoor_seating']
 
 
 def load_subs(path):
@@ -31,7 +32,8 @@ def load_subs(path):
                 if 'name' in c:
                     c['re'] = re.compile(c['name'], re.I)
                 need.append(c)
-            subs.append({'id': s['id'], 'q': [tuple(x) for x in s['q']], 'need': need, 'named': s.get('named', False)})
+            subs.append({'id': s['id'], 'q': [tuple(x) for x in s['q']], 'need': need, 'named': s.get('named', False),
+                         'exclude': s.get('exclude', []), 'min_area': s.get('min_area', 0)})
     return subs
 
 
@@ -56,6 +58,10 @@ def classify(subs, tags):
             continue
         if s['named'] and not name:
             continue
+        if any(v.strip() in c['in'] for c in s['exclude'] for v in tags.get(c['tag'], '').split(';')):
+            continue
+        if s['min_area'] and tags.get('_area', 0) < s['min_area']:
+            continue
         return s['id']
     return None
 
@@ -72,6 +78,13 @@ def build(cat_path, src, out):
             items.append([oid, round(lat, 5), round(lon, 5), sid,
                           {k: tags[k] for k in KEEP if k in tags}])
 
+    def area_m2(ring):
+        if len(ring) < 4:
+            return 0
+        lat0 = math.radians(sum(p[0] for p in ring) / len(ring))
+        xy = [(p[1] * 111320 * math.cos(lat0), p[0] * 110540) for p in ring]
+        return abs(sum(x1 * y2 - x2 * y1 for (x1, y1), (x2, y2) in zip(xy, xy[1:] + xy[:1]))) / 2
+
     def centroid(points):
         if not points:
             return None
@@ -85,16 +98,23 @@ def build(cat_path, src, out):
         def way(self, w):
             if not len(w.tags):
                 return
-            c = centroid([(nd.lat, nd.lon) for nd in w.nodes if nd.location.valid()])
+            pts = [(nd.lat, nd.lon) for nd in w.nodes if nd.location.valid()]
+            c = centroid(pts)
             if c:
-                emit(f'w{w.id}', c[0], c[1], {t.k: t.v for t in w.tags})
+                tags = {t.k: t.v for t in w.tags}
+                if len(pts) > 3 and pts[0] == pts[-1]:
+                    tags['_area'] = area_m2(pts[:-1])
+                emit(f'w{w.id}', c[0], c[1], tags)
 
         def area(self, a):
             if a.from_way():          # geschlossene Wege kommen schon über way()
                 return
-            c = centroid([(n.lat, n.lon) for ring in a.outer_rings() for n in ring])
+            rings = [[(n.lat, n.lon) for n in ring] for ring in a.outer_rings()]
+            c = centroid([p for r in rings for p in r])
             if c:
-                emit(f'r{a.orig_id()}', c[0], c[1], {t.k: t.v for t in a.tags})
+                tags = {t.k: t.v for t in a.tags}
+                tags['_area'] = sum(area_m2(r[:-1] if r and r[0] == r[-1] else r) for r in rings)
+                emit(f'r{a.orig_id()}', c[0], c[1], tags)
 
     Handler().apply_file(src, locations=True, idx='flex_mem')
 
