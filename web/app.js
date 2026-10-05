@@ -96,7 +96,7 @@ const STAY_OPTS = [15, 30, 45, 60, 90, 120, 180, 240, 300, 360, 480];
 // ===================== Zustand =====================
 const state = {
   MAIN: [], SUB: {}, meta: null, tileSet: new Set(),
-  stops: ['', ''], radius: settings.radius * 1000,
+  stops: ['', ''], stopInfo: [null, null], radius: settings.radius * 1000,
   mains: new Set(), subs: new Set(), extras: new Set(), kw: '', maxOff: settings.radius * 1000,
   route: null, results: [], byId: new Map(), favs: store.get('af-favs', {}), tips: new Set(), favOnly: false,
   plan: Object.assign({dep: '09:00', stay: {}}, store.get('af-plan', {})),
@@ -145,33 +145,72 @@ function renderStops(){
       <input type="text" data-stop="${i}" list="places" value="${esc(v)}" placeholder="${hint}" aria-label="${kind}" required>${tool}</li>`;
   }).join('');
 }
-$('stops').addEventListener('input', e => { const i = e.target.dataset.stop; if(i != null){ state.stops[+i] = e.target.value; suggest(e.target.value); } });
+// Lesbare Bezeichnung aus Photon-Daten: Name, Straße, PLZ Ort, bei Ausland das Land
+function placeLabel(pr){
+  const city = pr.city || pr.town || pr.village || pr.locality || pr.district || pr.county;
+  const street = pr.street ? pr.street + (pr.housenumber ? ' ' + pr.housenumber : '') : '';
+  const parts = [];
+  if(pr.name && pr.name !== city && pr.name !== pr.street) parts.push(pr.name);
+  if(street) parts.push(street);
+  if(city) parts.push((pr.postcode ? pr.postcode + ' ' : '') + city);
+  else if(pr.state && pr.state !== pr.name) parts.push(pr.state);
+  if(pr.countrycode && pr.countrycode !== 'DE' && pr.country) parts.push(pr.country);
+  return [...new Set(parts)].join(', ') || pr.name || '';
+}
+const placeShort = pr => pr.name || pr.city || pr.town || pr.village || pr.street || '';
+const featureInfo = f => ({p: [f.geometry.coordinates[1], f.geometry.coordinates[0]], label: placeLabel(f.properties), short: placeShort(f.properties)});
+const sugMap = new Map();
+$('stops').addEventListener('input', e => {
+  const i = e.target.dataset.stop; if(i == null) return;
+  const v = e.target.value; state.stops[+i] = v;
+  state.stopInfo[+i] = sugMap.get(v) || null;   // aus der Vorschlagsliste gewählt: Koordinaten direkt übernehmen
+  if(!state.stopInfo[+i]) suggest(v);
+});
 $('stops').addEventListener('click', e => {
-  const rm = e.target.closest('[data-remove]'); if(rm){ state.stops.splice(+rm.dataset.remove, 1); renderStops(); return; }
+  const rm = e.target.closest('[data-remove]');
+  if(rm){ const i = +rm.dataset.remove; state.stops.splice(i, 1); state.stopInfo.splice(i, 1); renderStops(); return; }
   if(e.target.closest('[data-locate]')){
     if(!navigator.geolocation){ toast('Standort wird von diesem Browser nicht unterstützt'); return; }
-    navigator.geolocation.getCurrentPosition(p => { state.stops[0] = `${p.coords.latitude.toFixed(5)}, ${p.coords.longitude.toFixed(5)}`; renderStops(); toast('Standort übernommen'); },
-      () => toast('Standort nicht verfügbar'), {timeout: 10000});
+    state.stops[0] = 'Standort wird ermittelt …'; state.stopInfo[0] = null; renderStops();
+    navigator.geolocation.getCurrentPosition(async pos => {
+      const p = [pos.coords.latitude, pos.coords.longitude];
+      state.stopInfo[0] = {p, label: 'Mein Standort', short: 'Mein Standort'}; state.stops[0] = 'Mein Standort'; renderStops();
+      const info = await reverseGeocode(p);
+      if(info && state.stopInfo[0]?.p === p){ state.stopInfo[0] = {...info, p}; state.stops[0] = info.label; renderStops(); }
+      toast('Standort übernommen');
+    }, () => { state.stops[0] = ''; renderStops(); toast('Standort nicht verfügbar'); }, {timeout: 10000, enableHighAccuracy: true});
   }
 });
-$('addStop').addEventListener('click', () => { state.stops.splice(state.stops.length-1, 0, ''); renderStops(); $('stops').querySelector(`[data-stop="${state.stops.length-2}"]`)?.focus(); });
+$('addStop').addEventListener('click', () => {
+  const at = state.stops.length - 1; state.stops.splice(at, 0, ''); state.stopInfo.splice(at, 0, null);
+  renderStops(); $('stops').querySelector(`[data-stop="${at}"]`)?.focus();
+});
 let sugT, sugCtl;
 function suggest(q){
   clearTimeout(sugT); if(q.trim().length < 3) return;
   sugT = setTimeout(async () => {
     sugCtl?.abort(); sugCtl = new AbortController();
     try{
-      const j = await (await fetch(`https://photon.komoot.io/api/?limit=5&lang=de&bbox=-5.5,41.3,24.5,58.0&q=${enc(q)}`, {signal: sugCtl.signal})).json();
-      const labels = [...new Set(j.features.map(f => [f.properties.name, f.properties.city || f.properties.county, f.properties.country].filter((x, i, a) => x && a.indexOf(x) === i).join(', ')))];
-      $('places').innerHTML = labels.map(l => `<option value="${esc(l)}">`).join('');
+      const j = await (await fetch(`https://photon.komoot.io/api/?limit=6&lang=de&bbox=-5.5,41.3,24.5,58.0&q=${enc(q)}`, {signal: sugCtl.signal})).json();
+      const infos = j.features.map(featureInfo).filter(x => x.label);
+      infos.forEach(x => sugMap.set(x.label, x));
+      $('places').innerHTML = [...new Set(infos.map(x => x.label))].map(l => `<option value="${esc(l)}">`).join('');
     }catch(e){}
-  }, 300);
+  }, 280);
 }
+async function reverseGeocode(p){
+  try{
+    const f = (await getJSON(`https://photon.komoot.io/reverse?lat=${p[0].toFixed(6)}&lon=${p[1].toFixed(6)}&lang=de&limit=1`, 'Die Adresssuche', 10000)).features?.[0];
+    return f ? featureInfo(f) : null;
+  }catch(e){ return null; }
+}
+// Liefert Koordinaten plus ausgeschriebene Bezeichnung des gefundenen Orts
 async function geocode(q){
-  const m = q.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/); if(m) return [+m[1], +m[2]];
+  const m = q.trim().match(/^(-?\d+(?:\.\d+)?)\s*,\s*(-?\d+(?:\.\d+)?)$/);
+  if(m){ const p = [+m[1], +m[2]]; const info = await reverseGeocode(p); return info ? {...info, p} : {p, label: q.trim(), short: q.trim()}; }
   const f = (await getJSON(`https://photon.komoot.io/api/?limit=1&lang=de&q=${enc(q)}`, 'Die Ortssuche')).features?.[0];
   if(!f) throw new Error(`„${q}“ nicht gefunden. Ort genauer angeben, z. B. mit Landkreis.`);
-  const [lo, la] = f.geometry.coordinates; return [la, lo];
+  return featureInfo(f);
 }
 async function osrm(points){
   const j = await getJSON(`https://router.project-osrm.org/route/v1/driving/${points.map(p => p[1].toFixed(5)+','+p[0].toFixed(5)).join(';')}?overview=full&geometries=geojson`, 'Die Routenberechnung', 30000);
@@ -205,14 +244,18 @@ function routeStatus(msg, err=false){ const s = $('routeStatus'); s.textContent 
 async function search(ev){
   ev?.preventDefault();
   if(!state.meta){ routeStatus('Es sind noch keine Daten gebaut. Siehe Anleitung (README).', true); return; }
-  state.stops = state.stops.map(s => s.trim()).filter(Boolean);
-  if(state.stops.length < 2){ routeStatus('Bitte mindestens Start und Ziel angeben.', true); while(state.stops.length < 2) state.stops.push(''); renderStops(); return; }
+  const keep = state.stops.map((s, i) => [s.trim(), state.stopInfo[i]]).filter(([s]) => s);
+  state.stops = keep.map(k => k[0]); state.stopInfo = keep.map(k => k[1] || null);
+  if(state.stops.length < 2){ routeStatus('Bitte mindestens Start und Ziel angeben.', true); while(state.stops.length < 2){ state.stops.push(''); state.stopInfo.push(null); } renderStops(); return; }
   renderStops();
   const radius = state.radius;
   $('goBtn').disabled = true;
   try{
     routeStatus('Orte werden gesucht …');
-    const points = await Promise.all(state.stops.map(geocode));
+    const infos = await Promise.all(state.stops.map((q, i) => state.stopInfo[i] || geocode(q)));
+    state.stopInfo = infos; state.stops = infos.map(x => x.label);
+    renderStops();
+    const points = infos.map(x => x.p);
     routeStatus('Route wird berechnet …');
     const rt = await osrm(points);
     let c = 0; const legEnds = rt.legs.map(l => c += l.distance);
@@ -392,8 +435,8 @@ function render(animate=false){
 function renderTopbar(){
   const R = state.route;
   if(!R){ $('routeTitle').textContent = 'Route planen'; $('routeSub').textContent = 'Sidequest findet Ausflugsziele unterwegs'; return; }
-  const short = s => s.split(',')[0];
-  $('routeTitle').innerHTML = `${esc(short(state.stops[0]))}<span class="sep">/</span>${esc(short(state.stops[state.stops.length-1]))}`;
+  const short = i => state.stopInfo[i]?.short || state.stops[i].split(',')[0];
+  $('routeTitle').innerHTML = `${esc(short(0))}<span class="sep">/</span>${esc(short(state.stops.length-1))}`;
   const cats = state.mains.size ? state.MAIN.filter(m => state.mains.has(m.id)).map(m => m.label).join(', ') : 'alle Kategorien';
   $('routeSub').textContent = `${fmtKm(R.radius)} km Korridor${state.stops.length > 2 ? `, ${state.stops.length - 2} Zwischenstopp${state.stops.length > 3 ? 's' : ''}` : ''}, ${cats}`;
 }
@@ -679,6 +722,7 @@ $('settingsBody').addEventListener('change', e => {
 function shareParams(withTips){
   const p = new URLSearchParams();
   p.set('s', state.stops.join('|')); p.set('r', (state.route?.radius || state.radius) / 1000);
+  if(state.stopInfo.some(Boolean)) p.set('c', state.stopInfo.map(x => x ? x.p[0].toFixed(5) + ',' + x.p[1].toFixed(5) : '').join('|'));
   if(state.mains.size) p.set('m', [...state.mains].join(','));
   if(state.subs.size) p.set('u', [...state.subs].join(','));
   if(state.extras.size) p.set('x', [...state.extras].join(','));
@@ -691,6 +735,8 @@ const syncHash = () => history.replaceState(null, '', '#' + shareParams(false).t
 function readHash(){
   const p = new URLSearchParams(location.hash.slice(1)); if(!p.get('s')) return false;
   state.stops = p.get('s').split('|');
+  const cs = (p.get('c') || '').split('|');
+  state.stopInfo = state.stops.map((label, i) => { const m = (cs[i] || '').split(',').map(Number); return m.length === 2 && m.every(Number.isFinite) ? {p: m, label, short: label.split(',')[0]} : null; });
   const r = +p.get('r'); if(r >= 2 && r <= 25) state.radius = state.maxOff = r * 1000;
   state.mains = new Set((p.get('m') || '').split(',').filter(id => state.MAIN.some(m => m.id === id)));
   if(p.has('u')) state.subs = new Set(p.get('u').split(','));
