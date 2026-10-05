@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Baut die POI-Kacheln für den Abstecher-Finder.
+Baut die POI-Kacheln für Sidequest.
 
   python3 build_pois.py --filter web/categories.json
       -> gibt die Filterausdrücke für `osmium tags-filter` aus
@@ -16,7 +16,8 @@ from datetime import datetime, timezone
 from collections import defaultdict
 
 KEEP = ['name', 'wikidata', 'wikipedia', 'website', 'contact:website', 'opening_hours', 'wheelchair', 'dog', 'fee',
-        'covered', 'indoor', 'building', 'zoo', 'museum']
+        'covered', 'indoor', 'building', 'zoo', 'museum',
+        'cuisine', 'diet:vegetarian', 'diet:vegan', 'website:menu', 'menu:url', 'addr:city', 'phone', 'contact:phone']
 
 
 def load_subs(path):
@@ -48,7 +49,7 @@ def classify(subs, tags):
         if not any(v in [x.strip() for x in tags.get(k, '').split(';')] for k, v in s['q']):
             continue
         if s['need'] and not any(
-            (('tag' in c and tags.get(c['tag']) in c['in']) or
+            (('tag' in c and any(v.strip() in c['in'] for v in tags.get(c['tag'], '').split(';'))) or
              ('has' in c and tags.get(c['has']) not in (None, 'no')) or
              ('re' in c and c['re'].search(name)))
             for c in s['need']):
