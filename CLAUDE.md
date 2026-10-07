@@ -41,7 +41,7 @@ web/                          wird 1:1 veröffentlicht
 - `python3 scripts/build_pois.py web/categories.json gefiltert.osm.pbf web/data` klassifiziert und schreibt die Kacheln.
 - Kachel-Eintrag: `[id, lat, lon, unterkategorie, {tags}]`. Behaltene Tags stehen in `KEEP`. Neue Tags, die die App braucht, dort ergänzen.
 - Flächen bekommen ein Pseudo-Tag `_area` in m² (für `min_area`, z. B. Seen).
-- Workflow: Länder aus `COUNTRIES` nacheinander von Geofabrik laden, sofort filtern, zusammenführen (osmium merge), Kacheln bauen, `web/` deployen. Der gefilterte Auszug wird pro Kalenderwoche gecacht. Der Cache-Schlüssel enthält den Hash von `categories.json` und `build.yml`: Ändert sich eins davon, wird komplett neu geladen (ca. 30–45 min), sonst dauert ein Deploy wenige Minuten.
+- Workflow: Länder aus `COUNTRIES` nacheinander von Geofabrik laden, sofort filtern, zusammenführen (`osmium merge`), danach mit `osmium time-filter` auf die jeweils neueste Version je Objekt bringen (Grenzobjekte stehen sonst doppelt in verschiedenen Versionen, der Kachelbau bricht mit „Way ID twice in input“ ab), Kacheln bauen, `web/` deployen. Der gefilterte Auszug wird pro Kalenderwoche gecacht. Der Cache-Schlüssel enthält den Hash von `categories.json` und `build.yml`: Ändert sich eins davon, wird komplett neu geladen (ca. 30–45 min), sonst dauert ein Deploy wenige Minuten.
 
 ### App (`web/app.js`)
 - Zustand in einem Objekt `state`. Einstellungen in `settings`. Persistiert in `localStorage`: `af-settings`, `af-favs` (Merkliste), `af-plan` (Abfahrt, Aufenthaltsdauern).

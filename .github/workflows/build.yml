@@ -89,8 +89,13 @@ jobs:
             ls -lh "part-$c.osm.pbf"
             echo "::endgroup::"
           done
-          osmium merge part-*.osm.pbf -o filtered.osm.pbf --overwrite
+          osmium merge part-*.osm.pbf -o merged.osm.pbf --overwrite
           rm part-*.osm.pbf
+          # Wege und Knoten an Landesgrenzen stehen in zwei Auszügen, bei verschiedenen Dump-Zeitpunkten in
+          # unterschiedlichen Versionen. merge behält beide, der Kachelbau bricht dann mit „Way ID twice“ ab.
+          # time-filter behält je Objekt nur die neueste Version.
+          osmium time-filter merged.osm.pbf 2100-01-01T00:00:00Z -o filtered.osm.pbf --overwrite
+          rm merged.osm.pbf
           ls -lh filtered.osm.pbf
 
       - name: Kacheln bauen
