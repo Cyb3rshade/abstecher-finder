@@ -121,7 +121,7 @@ const state = {
 const map = L.map('map', {zoomControl: false, attributionControl: true, preferCanvas: true}).setView([50.5, 9.5], 6);
 const pinRenderer = L.canvas({padding: .5, tolerance: 6});
 if(!isNarrow()) L.control.zoom({position: 'topright'}).addTo(map);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© OpenStreetMap-Mitwirkende'}).addTo(map);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende'}).addTo(map);
 const routeLayer = L.layerGroup().addTo(map);
 function mapPadding(){
   if(isNarrow()) return {paddingTopLeft: [30, 110], paddingBottomRight: [30, Math.round(innerHeight * .52) + 20]};
@@ -925,6 +925,17 @@ function renderSettings(){
       <div class="set-row"><div class="t"><b>Kartendaten</b><small>OpenStreetMap, ${esc(meta)}</small></div></div>
       <div class="set-row"><div class="t"><b>Merkliste leeren</b><small>${Object.keys(state.favs).length} gemerkte Ziele auf diesem Gerät</small></div><button type="button" class="secondary-btn" style="flex:none;padding:0 14px" id="clearFavs">Leeren</button></div>
     </div>
+    <div class="group-label">Datenquellen und Lizenzen</div>
+    <div class="set-group">
+      <div class="set-row"><div class="t"><b>Karte und Ziele</b><small>© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>-Mitwirkende, Lizenz <a href="https://opendatacommons.org/licenses/odbl/" target="_blank" rel="noopener">ODbL</a>. Kartenkacheln von der OpenStreetMap Foundation</small></div></div>
+      <div class="set-row"><div class="t"><b>Ortssuche</b><small><a href="https://photon.komoot.io/" target="_blank" rel="noopener">Photon</a> von Komoot, Daten aus OpenStreetMap</small></div></div>
+      <div class="set-row"><div class="t"><b>Routen und Fahrzeiten</b><small><a href="https://project-osrm.org/" target="_blank" rel="noopener">OSRM</a>-Demoserver, Daten aus OpenStreetMap</small></div></div>
+      <div class="set-row"><div class="t"><b>Beschreibungen</b><small><a href="https://www.wikipedia.org/" target="_blank" rel="noopener">Wikipedia</a> (CC BY-SA 4.0) und <a href="https://www.wikidata.org/" target="_blank" rel="noopener">Wikidata</a> (CC0)</small></div></div>
+      <div class="set-row"><div class="t"><b>Fotos</b><small><a href="https://commons.wikimedia.org/" target="_blank" rel="noopener">Wikimedia Commons</a>, Fotograf und Lizenz stehen am jeweiligen Bild</small></div></div>
+      <div class="set-row"><div class="t"><b>Wetter</b><small><a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo</a> (CC BY 4.0)</small></div></div>
+      <div class="set-row"><div class="t"><b>Technik</b><small>Karte mit Leaflet (BSD-2), Schrift Archivo (SIL OFL 1.1)</small></div></div>
+    </div>
+    <p class="note">Beim Suchen, bei der Karte und beim Öffnen eines Ziels fragt die App diese Dienste an. Sie sehen dabei deine IP-Adresse. Sidequest selbst speichert nichts auf einem Server.</p>
     <p class="signature"><svg class="i" width="28" height="28" viewBox="0 0 512 512" aria-hidden="true"><rect width="512" height="512" rx="112" fill="#000"/><path d="M366 157 A148 148 0 1 0 366 355" fill="none" stroke="#C6FF3D" stroke-width="66"/><rect x="72" y="251" width="74" height="10" rx="5" fill="#5CE1FF"/></svg><span><b>Sidequest</b> by Cybershade</span></p>`;
 }
 $('settingsBody').addEventListener('click', e => {

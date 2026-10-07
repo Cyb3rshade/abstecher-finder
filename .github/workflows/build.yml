@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
   pages: write
   id-token: write
 
@@ -27,19 +27,28 @@ jobs:
       name: github-pages
       url: ${{ steps.deploy.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
-      # Einmalig: hochgeladene projekt.zip entpacken und als normale Dateien ins Repo übernehmen
-      - name: Projekt-ZIP entpacken
-        if: hashFiles('projekt.zip') != ''
+      - name: Sicherheitscheck – keine Keys oder Tokens im Repo
         run: |
-          unzip -o -q projekt.zip
-          git rm -q projekt.zip
-          git config user.name "github-actions[bot]"
-          git config user.email "41898283+github-actions[bot]@users.noreply.github.com"
-          git add -A
-          git commit -m "Projekt entpackt"
-          git push
+          if grep -rEn "sk-ant-[A-Za-z0-9_-]{10,}|github_pat_[A-Za-z0-9_]{20,}|gh[pousr]_[A-Za-z0-9]{30,}|ST1\\.[A-Za-z0-9_-]{60,}" --exclude-dir=.git .; then
+            echo "::error::Möglicher API-Key, GitHub-Token oder Verbindungscode gefunden. Deploy abgebrochen – aus dem Repo entfernen und den Key/Token sperren."
+            exit 1
+          fi
+
+      - name: Dateien prüfen
+        run: |
+          node -e "JSON.parse(require('fs').readFileSync('web/manifest.webmanifest','utf8'))"
+          node -e "const c=JSON.parse(require('fs').readFileSync('web/categories.json','utf8'));if(!c.main||!c.main.length)process.exit(1);const ids=new Set();for(const m of c.main){if(!m.id||!m.label||!m.subs||!m.subs.length){console.error('Oberkategorie unvollständig: '+m.id);process.exit(1)}for(const s of m.subs){if(!s.id||ids.has(s.id)){console.error('Doppelte oder fehlende Unterkategorie-ID: '+s.id);process.exit(1)}ids.add(s.id)}}console.log(c.main.length+' Oberkategorien, '+ids.size+' Unterkategorien')"
+          node --check web/app.js
+          node --check web/sw.js
+          node -e "const fs=require('fs');const h=fs.readFileSync('web/index.html','utf8');const m=[...h.matchAll(/<script(?![^>]*src)[^>]*>([\\s\\S]*?)<\\/script>/g)].map(x=>x[1]).join('\\n');fs.writeFileSync('/tmp/inline.js',m)"
+          node --check /tmp/inline.js
+          python3 -m py_compile scripts/build_pois.py
+          if grep -rEn "fonts\\.googleapis|fonts\\.gstatic|cdnjs\\.cloudflare|unpkg\\.com|cdn\\.jsdelivr" web --include=*.html --include=*.css --include=*.js; then
+            echo "::error::Externe Schrift- oder Bibliotheks-Adresse gefunden. Dateien gehören ins Repo (siehe ARCHITEKTUR.md, Abschnitt Rechtliches)."
+            exit 1
+          fi
 
       - name: Kalenderwoche bestimmen
         id: week
@@ -87,9 +96,17 @@ jobs:
       - name: Kacheln bauen
         run: python3 scripts/build_pois.py web/categories.json filtered.osm.pbf web/data
 
+      - name: App zusammenstellen und Version stempeln
+        run: |
+          VERSION="$(date -u +%Y.%m.%d)-${GITHUB_RUN_NUMBER}"
+          mkdir _site
+          cp -r web/. _site/
+          sed -i "s/__BUILD__/${VERSION}/g" _site/sw.js
+          echo "### Sidequest Version ${VERSION}" >> "$GITHUB_STEP_SUMMARY"
+
       - uses: actions/configure-pages@v5
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/upload-pages-artifact@v4
         with:
-          path: web
+          path: _site
       - id: deploy
         uses: actions/deploy-pages@v4

@@ -1,3 +1,6 @@
+/* Schrift lokal (SIL OFL 1.1, Lizenz in fonts/). Keine Verbindung zu Google. */
+@font-face{font-family:"Archivo";font-style:normal;font-weight:100 900;font-stretch:62% 125%;font-display:swap;src:url(fonts/archivo-latin-ext-wdth-normal.woff2) format("woff2");unicode-range:U+0100-02BA,U+02BD-02C5,U+02C7-02CC,U+02CE-02D7,U+02DD-02FF,U+0304,U+0308,U+0329,U+1D00-1DBF,U+1E00-1E9F,U+1EF2-1EFF,U+2020,U+20A0-20AB,U+20AD-20C0,U+2113,U+2C60-2C7F,U+A720-A7FF}
+@font-face{font-family:"Archivo";font-style:normal;font-weight:100 900;font-stretch:62% 125%;font-display:swap;src:url(fonts/archivo-latin-wdth-normal.woff2) format("woff2");unicode-range:U+0000-00FF,U+0131,U+0152-0153,U+02BB-02BC,U+02C6,U+02DA,U+02DC,U+0304,U+0308,U+0329,U+2000-206F,U+20AC,U+2122,U+2191,U+2193,U+2212,U+2215,U+FEFF,U+FFFD}
 /* ===== Farbwelten: Hell = Schwarz/Weiß/Rot, Dunkel = Schwarz/Neongrün/Eisblau =====
    a1 = Route & Filter, a2 = alles in deiner Tour, --c-* = Kategoriefarben, --o-* = Schrift darauf */
 :root, [data-theme="light"]{
@@ -257,6 +260,7 @@ input:focus,select:focus{outline:none;border-color:var(--a1);box-shadow:0 0 0 3p
 .set-row b{display:block;font-weight:600;font-size:15px}
 .set-row small{display:block;font-size:13px;color:var(--muted);margin-top:2px}
 .set-row select{width:auto}
+.set-row small a{color:inherit;text-decoration:underline;text-underline-offset:2px}
 .switch{width:52px;height:32px;flex:none;border-radius:16px;border:0;padding:3px;background:var(--line2);display:flex;transition:background .2s}
 .switch::after{content:"";width:26px;height:26px;border-radius:13px;background:var(--surf);box-shadow:0 1px 2px rgba(0,0,0,.3);transition:transform .2s var(--ease)}
 .switch[aria-checked=true]{background:var(--a1)}

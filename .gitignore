@@ -1,3 +1,4 @@
 filtered.osm.pbf
 *.osm.pbf
 web/data/
+__pycache__/

@@ -2,6 +2,8 @@
 
 Arbeitsanweisungen für Claude Code in diesem Repo. Die Entstehungsgeschichte und alle Entscheidungen stehen in `UEBERGABE-SIDEQUEST.md`.
 
+Gemeinsame Regeln: `../../CLAUDE.md` und `../../ARCHITEKTUR.md` (Cybershade Workspace, Repo `cybershade-kit`, diese App liegt dort unter `apps/sidequest/`).
+
 ## Ziel und Zielgruppe
 
 Sidequest findet Ausflugsziele entlang einer Autoroute: Start und Ziel (plus Zwischenstopps) eingeben, die App zeigt Freizeitparks, Spaßbäder, Zoos, Seen, Burgen, Restaurants und mehr in einem Korridor um die Strecke. Gefundene Ziele lassen sich filtern, merken, als Zwischenstopps zu einer Tour hinzufügen und an Google Maps oder als GPX exportieren.
@@ -24,9 +26,11 @@ web/                          wird 1:1 veröffentlicht
   app.js                      gesamte App-Logik, in kommentierte Abschnitte gegliedert
   style.css                   Themes, Layouts, Komponenten
   categories.json             EINZIGE Quelle für Kategorien (Build und App)
-  sw.js                       Service Worker (Offline-Cache)
+  sw.js                       Service Worker (Offline-Cache, Cache-Name mit __BUILD__)
   manifest.webmanifest        PWA-Manifest
   icon*.png, icon.svg, apple-touch-icon.png, favicon-32.png
+  fonts/                      Archivo (variabel, latin + latin-ext), lokal, mit OFL-Lizenz
+  vendor/leaflet/             Leaflet 1.9.4 (BSD-2, Lizenzdatei dabei), lokal statt CDN
   data/                       entsteht erst im Workflow, nicht im Repo (.gitignore)
     meta.json                 {built, count, tileSize, tiles}
     tiles/<i>_<j>.json        0,5°-Raster: i = floor(lat*2), j = floor(lon*2)
@@ -38,7 +42,6 @@ web/                          wird 1:1 veröffentlicht
 - Kachel-Eintrag: `[id, lat, lon, unterkategorie, {tags}]`. Behaltene Tags stehen in `KEEP`. Neue Tags, die die App braucht, dort ergänzen.
 - Flächen bekommen ein Pseudo-Tag `_area` in m² (für `min_area`, z. B. Seen).
 - Workflow: Länder aus `COUNTRIES` nacheinander von Geofabrik laden, sofort filtern, zusammenführen (osmium merge), Kacheln bauen, `web/` deployen. Der gefilterte Auszug wird pro Kalenderwoche gecacht. Der Cache-Schlüssel enthält den Hash von `categories.json` und `build.yml`: Ändert sich eins davon, wird komplett neu geladen (ca. 30–45 min), sonst dauert ein Deploy wenige Minuten.
-- Der Schritt „Projekt-ZIP entpacken“ ist ein Überbleibsel der Ersteinrichtung per Handy und tut nichts, solange keine `projekt.zip` im Repo liegt.
 
 ### App (`web/app.js`)
 - Zustand in einem Objekt `state`. Einstellungen in `settings`. Persistiert in `localStorage`: `af-settings`, `af-favs` (Merkliste), `af-plan` (Abfahrt, Aufenthaltsdauern).
@@ -51,7 +54,7 @@ web/                          wird 1:1 veröffentlicht
 - Layout nach Breite, nicht nach Gerät: unter 760 px Karte vollflächig mit ziehbarem Panel (peek/half/full), ab 760 px Liste links und Karte rechts, ab 1100 px zusätzlich Kategorie-Chips sichtbar. `(hover:hover)` steuert Hover-Effekte und Tooltips.
 - Themes: `data-theme="light"|"dark"` auf `<html>`, Einstellung Hell, Dunkel oder Automatisch. Kartenkacheln werden per CSS-Filter grau bzw. dunkel. Kategoriefarben als `--c-<oberkategorie>` (Schrift darauf `--o-<…>`).
 - Teilen per URL-Hash: `s` Stopps, `c` Koordinaten, `r` Korridor, `m` Oberkategorien, `u` Unterkategorien, `x` Extras, `k` Stichwort, `t` Tipps (Merkliste), `w` Tour.
-- Service Worker: App-Dateien netzwerk-zuerst, Kacheln cache-zuerst (URL mit `?v=<built>`), `meta.json` und `categories.json` nie aus dem Cache. Bei Änderungen an App-Dateien `SHELL` in `sw.js` hochzählen (`af-shell-vN`).
+- Service Worker: App-Dateien netzwerk-zuerst, Kacheln cache-zuerst (URL mit `?v=<built>`), `meta.json` und `categories.json` nie aus dem Cache. Der Cache-Name `af-shell-__BUILD__` wird im Deploy gestempelt (nie von Hand hochzählen), beim Aktivieren löscht der Service Worker alte `af-shell-*`-Caches. Neue Dateien, die offline gebraucht werden, in `FILES` in `sw.js` eintragen.
 
 ## Datenquellen und APIs
 
@@ -101,11 +104,12 @@ Filter in der App:
 - Keine persönlichen Orte als Vorbelegung. Platzhalter bleiben „z. B. Hannover“ und „z. B. Köln“.
 - Neue Daten nur aus kostenlosen, schlüsselfreien Quellen. Lizenzen beachten (Commons-Fotos immer mit Fotograf und Lizenz).
 - Barrierefreiheit: echte Buttons, `aria-label` für Symbol-Knöpfe, Tippflächen mindestens 44 px, `prefers-reduced-motion` respektieren.
-- Nach Änderungen an App-Dateien `SHELL` in `sw.js` hochzählen.
+- Nichts von Dritten nachladen: Schriften und Bibliotheken liegen im Repo (`fonts/`, `vendor/`). Der Deploy bricht bei Google-Fonts- oder CDN-Adressen ab.
+- Neue Datenquelle oder Bibliothek: Lizenz prüfen und in Einstellungen → „Datenquellen und Lizenzen“ ergänzen.
 
 ## Deploy
 
-Push auf `main` startet `.github/workflows/build.yml` und veröffentlicht `web/` auf GitHub Pages (`https://<nutzer>.github.io/sidequest/`). Zusätzlich läuft der Workflow jeden Montag um 03:00 UTC für frische OSM-Daten und lässt sich manuell starten (Run workflow).
+Push auf `main` startet `.github/workflows/build.yml`: Key-Scan, Syntax- und Strukturprüfung (JS, Manifest, `categories.json`, Python, keine externen Schrift-/CDN-Adressen), Kacheln bauen, Version stempeln, dann wird `web/` (als `_site/`) auf GitHub Pages veröffentlicht (`https://<nutzer>.github.io/sidequest/`). Zusätzlich läuft der Workflow jeden Montag um 03:00 UTC für frische OSM-Daten und lässt sich manuell starten (Run workflow).
 
 Nach dem Deploy: GitHub Pages hält Dateien bis zu 10 Minuten im Cache. Installierte Apps einmal ganz schließen und neu öffnen. Icons und Namen auf dem iPhone-Homescreen aktualisieren sich nie von selbst.
 
@@ -119,4 +123,9 @@ Nach dem Deploy: GitHub Pages hält Dateien bis zu 10 Minuten im Cache. Installi
    - Last: künstliche Kacheln mit mehreren Tausend Zielen entlang einer Strecke erzeugen
 4. Browser-Test mit Playwright: externe Dienste (Photon, OSRM, Open-Meteo, Wikipedia, Wikidata, Commons, Kartenkacheln) per Route-Interception mocken. Immer beide Größen (390 × 844 und 1440 × 900) und beide Themes prüfen, dazu Konsole ohne Fehler.
 5. Performance: mit 4-facher CPU-Drosselung messen. Richtwerte bei 6.000 Treffern: Neuaufbau etwa 100 ms, Filterwechsel unter 100 ms, keine Aufgaben über 50 ms beim Scrollen.
-6. Vor dem Commit: `sw.js` hochgezählt? Neue Tags in `KEEP`? Kategoriefarbe und Symbol ergänzt?
+6. Vor dem Commit: Neue Dateien in `FILES` (`sw.js`)? Neue Tags in `KEEP`? Kategoriefarbe und Symbol ergänzt? Neue Quelle in „Datenquellen und Lizenzen“?
+
+## Offene Abweichungen von den gemeinsamen Regeln
+
+- `web/style.css` definiert die Farb-Tokens noch selbst und nutzt `cybershade.css` aus dem Kit nicht. Schrittweise auf die Variablen aus dem Kit umstellen, App-Spezifisches (Kategoriefarben, Layout) bleibt in `style.css`.
+- Offen aus der Übergabe: Update-Hinweis mit Changelog, „Geöffnet bei Ankunft“, echte Umweg-Minuten, Rundtour, Ladestationen, Lieblingsfilter.
